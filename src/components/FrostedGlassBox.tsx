@@ -162,6 +162,7 @@ const BOX_SIZE = { w: 2, h: 2, d: 2 }
 const BOX_BOUNDS = { x: BOX_SIZE.w / 2 - 0.4, y: BOX_SIZE.h / 2 - 0.4, z: BOX_SIZE.d / 2 - 0.4 }
 const SPHERE_RADIUS = 1.1
 const SPHERE_BOUNDS = { x: SPHERE_RADIUS - 0.5, y: SPHERE_RADIUS - 0.5, z: SPHERE_RADIUS - 0.5 }
+const OUTER_SHELL_OFFSET = 0.14
 
 export default function FrostedGlassBox({ tailPreset, shape = 'box' }: { tailPreset: TailPresetKey; shape?: ShapeType }) {
   const groupRef = useRef<THREE.Group>(null)
@@ -207,80 +208,116 @@ export default function FrostedGlassBox({ tailPreset, shape = 'box' }: { tailPre
       <Bubbles />
 
       {shape === 'box' ? (
-        <RoundedBox
-          ref={mainBoxRef}
-          args={[BOX_SIZE.w, BOX_SIZE.h, BOX_SIZE.d]}
-          radius={0.15}
-          smoothness={8}
-          onPointerMove={handlePointerMove}
-          onPointerLeave={handlePointerLeave}
-        >
-          <MeshTransmissionMaterial
-            map={gradientMap}
-            color="#fafafa"
-            roughness={0.25}
-            transmission={0.9}
-            thickness={0.8}
-            chromaticAberration={0.01}
-            anisotropy={0.1}
-            distortion={0.02}
-            distortionScale={0.05}
-            temporalDistortion={0.02}
-            backside
-            backsideThickness={0.4}
-            samples={12}
-            resolution={512}
-            envMapIntensity={0.15}
-            clearcoat={0}
-            clearcoatRoughness={1}
-            attenuationColor="#c8e0ff"
-            attenuationDistance={2.5}
-            ior={1.1}
-            metalness={0}
-          />
-        </RoundedBox>
+        <>
+          <RoundedBox
+            ref={mainBoxRef}
+            args={[BOX_SIZE.w, BOX_SIZE.h, BOX_SIZE.d]}
+            radius={0.15}
+            smoothness={8}
+            onPointerMove={handlePointerMove}
+            onPointerLeave={handlePointerLeave}
+          >
+            <MeshTransmissionMaterial
+              map={gradientMap}
+              color="#fafafa"
+              roughness={0.25}
+              transmission={0.9}
+              thickness={0.5}
+              chromaticAberration={0.01}
+              anisotropy={0.1}
+              distortion={0.02}
+              distortionScale={0.05}
+              temporalDistortion={0.02}
+              backside
+              backsideThickness={0.4}
+              samples={12}
+              resolution={512}
+              envMapIntensity={0.15}
+              clearcoat={0}
+              clearcoatRoughness={1}
+              attenuationColor="#c8e0ff"
+              attenuationDistance={2.5}
+              ior={1.1}
+              metalness={0}
+            />
+          </RoundedBox>
+          <RoundedBox
+            args={[BOX_SIZE.w + OUTER_SHELL_OFFSET, BOX_SIZE.h + OUTER_SHELL_OFFSET, BOX_SIZE.d + OUTER_SHELL_OFFSET]}
+            radius={0.18}
+            smoothness={8}
+            renderOrder={10}
+          >
+            <meshPhysicalMaterial
+              color="#d4eaff"
+              transparent
+              opacity={0.18}
+              roughness={0.08}
+              metalness={0.05}
+              envMapIntensity={1.2}
+              clearcoat={1}
+              clearcoatRoughness={0.03}
+              ior={1.52}
+              specularIntensity={1.5}
+              reflectivity={0.8}
+              depthWrite={false}
+              side={THREE.FrontSide}
+            />
+          </RoundedBox>
+        </>
       ) : (
-        <mesh
-          ref={mainSphereRef}
-          onPointerMove={handlePointerMove}
-          onPointerLeave={handlePointerLeave}
-        >
-          <sphereGeometry args={[SPHERE_RADIUS, 64, 64]} />
-          <MeshTransmissionMaterial
-            map={gradientMap}
-            color="#fafafa"
-            roughness={0.3}
-            transmission={0.88}
-            thickness={0.5}
-            chromaticAberration={0.01}
-            anisotropy={0.1}
-            distortion={0.02}
-            distortionScale={0.05}
-            temporalDistortion={0.02}
-            backside
-            backsideThickness={0.4}
-            samples={12}
-            resolution={512}
-            envMapIntensity={0.15}
-            clearcoat={0}
-            clearcoatRoughness={1}
-            attenuationColor="#c8e0ff"
-            attenuationDistance={2.5}
-            ior={1.1}
-            metalness={0}
-          />
-        </mesh>
+        <>
+          <mesh
+            ref={mainSphereRef}
+            onPointerMove={handlePointerMove}
+            onPointerLeave={handlePointerLeave}
+          >
+            <sphereGeometry args={[SPHERE_RADIUS, 64, 64]} />
+            <MeshTransmissionMaterial
+              map={gradientMap}
+              color="#fafafa"
+              roughness={0.3}
+              transmission={0.88}
+              thickness={0.5}
+              chromaticAberration={0.01}
+              anisotropy={0.1}
+              distortion={0.02}
+              distortionScale={0.05}
+              temporalDistortion={0.02}
+              backside
+              backsideThickness={0.4}
+              samples={12}
+              resolution={512}
+              envMapIntensity={0.15}
+              clearcoat={0}
+              clearcoatRoughness={1}
+              attenuationColor="#c8e0ff"
+              attenuationDistance={2.5}
+              ior={1.1}
+              metalness={0}
+            />
+          </mesh>
+          <mesh renderOrder={10}>
+            <sphereGeometry args={[SPHERE_RADIUS + OUTER_SHELL_OFFSET / 2, 64, 64]} />
+            <meshPhysicalMaterial
+              color="#d4eaff"
+              transparent
+              opacity={0.18}
+              roughness={0.08}
+              metalness={0.05}
+              envMapIntensity={1.2}
+              clearcoat={1}
+              clearcoatRoughness={0.03}
+              ior={1.52}
+              specularIntensity={1.5}
+              reflectivity={0.8}
+              depthWrite={false}
+              side={THREE.FrontSide}
+            />
+          </mesh>
+        </>
       )}
 
       {/*<BreadSlice position={[0.03, 0.5, 0]} />*/}
-
-      <mesh
-        rotation={[-Math.PI / 2, 0, 0]}
-        position={[0.1, -0.75, 0.1]}
-        scale={[1, 0.625, 1]}
-      >
-        <meshBasicMaterial color="#c0daf0" transparent opacity={0.18} />
-      </mesh>
     </group>
   )
 }
