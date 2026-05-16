@@ -1,15 +1,7 @@
 import { useRef } from 'react'
 import { useFrame } from '@react-three/fiber'
 import * as THREE from 'three'
-
-export interface FoodPellet {
-  id: number
-  position: THREE.Vector3
-  velocity: THREE.Vector3
-  alive: boolean
-}
-
-const FLOOR_Y = -0.85
+import type { FoodPellet, Bounds } from '../types'
 
 const foodGeo = new THREE.SphereGeometry(0.02, 8, 6)
 const foodMat = new THREE.MeshStandardMaterial({
@@ -21,7 +13,7 @@ const foodMat = new THREE.MeshStandardMaterial({
 
 interface FishFoodProps {
   pelletsRef: { current: FoodPellet[] }
-  bounds: { x: number; y: number; z: number }
+  bounds: Bounds
 }
 
 export default function FishFood({ pelletsRef, bounds }: FishFoodProps) {

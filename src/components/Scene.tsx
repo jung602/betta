@@ -1,10 +1,9 @@
 import { useState } from 'react'
 import { Canvas } from '@react-three/fiber'
 import { Environment, ContactShadows, OrbitControls } from '@react-three/drei'
-import FrostedGlassBox from './FrostedGlassBox'
-import { TAIL_PRESETS, TailPresetKey } from './BettaFish'
-
-const presetKeys = Object.keys(TAIL_PRESETS) as TailPresetKey[]
+import { FrostedGlassBox } from './tank'
+import { TailPresetSelector } from './ui'
+import type { TailPresetKey } from './fish'
 
 export default function Scene() {
   const [tailPreset, setTailPreset] = useState<TailPresetKey>('halfmoon')
@@ -69,40 +68,7 @@ export default function Scene() {
         />
       </Canvas>
 
-      <div style={{
-        position: 'absolute',
-        bottom: 32,
-        left: '50%',
-        transform: 'translateX(-50%)',
-        display: 'flex',
-        flexDirection: 'column',
-        alignItems: 'center',
-        gap: 10,
-      }}>
-        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', justifyContent: 'center' }}>
-          {presetKeys.map(key => (
-            <button
-              key={key}
-              onClick={() => setTailPreset(key)}
-              style={{
-                padding: '7px 16px',
-                fontSize: 13,
-                fontFamily: '-apple-system, BlinkMacSystemFont, "Apple SD Gothic Neo", system-ui, sans-serif',
-                fontWeight: tailPreset === key ? 500 : 400,
-                background: tailPreset === key ? 'rgba(192, 64, 48, 0.12)' : 'rgba(255,255,255,0.7)',
-                color: tailPreset === key ? '#c04030' : '#445',
-                border: tailPreset === key ? '1px solid rgba(192, 64, 48, 0.35)' : '1px solid rgba(0,0,0,0.1)',
-                borderRadius: 999,
-                cursor: 'pointer',
-                backdropFilter: 'blur(8px)',
-                transition: 'all 0.15s ease',
-              }}
-            >
-              {TAIL_PRESETS[key].label}
-            </button>
-          ))}
-        </div>
-      </div>
+      <TailPresetSelector selected={tailPreset} onSelect={setTailPreset} />
     </div>
   )
 }

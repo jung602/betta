@@ -1,167 +1,12 @@
-import { useRef, useMemo, useEffect } from 'react'
+import { useRef, useMemo } from 'react'
 import { useFrame, ThreeEvent } from '@react-three/fiber'
 import * as THREE from 'three'
 import { useGLTF, MeshTransmissionMaterial } from '@react-three/drei'
-import BettaFish, { TailPresetKey } from './BettaFish'
-import Bubbles from './Bubbles'
-import FishFood, { FoodPellet } from './FishFood'
-
-function useGradientTexture(
-  topColor: string,
-  bottomColor: string,
-  size = 512
-) {
-  return useMemo(() => {
-    const canvas = document.createElement('canvas')
-    canvas.width = 4
-    canvas.height = size
-    const ctx = canvas.getContext('2d')!
-    const gradient = ctx.createLinearGradient(0, 0, 0, size)
-    gradient.addColorStop(0, topColor)
-    gradient.addColorStop(1, bottomColor)
-    ctx.fillStyle = gradient
-    ctx.fillRect(0, 0, 4, size)
-    const tex = new THREE.CanvasTexture(canvas)
-    tex.needsUpdate = true
-    return tex
-  }, [topColor, bottomColor, size])
-}
-
-function useRemapUVsByY(meshRef: React.RefObject<THREE.Mesh | null>, geo?: THREE.BufferGeometry | null) {
-  useEffect(() => {
-    const mesh = meshRef.current
-    if (!mesh) return
-    const geom = mesh.geometry
-    const pos = geom.attributes.position
-    if (!pos) return
-
-    let uv = geom.attributes.uv as THREE.BufferAttribute | undefined
-    if (!uv) {
-      uv = new THREE.Float32BufferAttribute(new Float32Array(pos.count * 2), 2)
-      geom.setAttribute('uv', uv)
-    }
-
-    let minY = Infinity, maxY = -Infinity
-    for (let i = 0; i < pos.count; i++) {
-      const y = pos.getY(i)
-      if (y < minY) minY = y
-      if (y > maxY) maxY = y
-    }
-    const range = maxY - minY || 1
-    for (let i = 0; i < pos.count; i++) {
-      const t = 1 - (pos.getY(i) - minY) / range
-      uv.setX(i, 0.5)
-      uv.setY(i, t)
-    }
-    uv.needsUpdate = true
-  }, [meshRef, geo])
-}
-
-function PlayIcon({ position }: { position: [number, number, number] }) {
-  const shape = useMemo(() => {
-    const s = new THREE.Shape()
-    s.moveTo(-0.15, -0.2)
-    s.lineTo(-0.15, 0.2)
-    s.lineTo(0.2, 0)
-    s.closePath()
-    return s
-  }, [])
-
-  return (
-    <mesh position={position}>
-      <shapeGeometry args={[shape]} />
-      <meshPhysicalMaterial
-        color="#ffffff"
-        roughness={0.6}
-        metalness={0}
-        transparent
-        opacity={0.92}
-      />
-    </mesh>
-  )
-}
-
-function BreadSlice({ position }: { position: [number, number, number] }) {
-  const shape = useMemo(() => {
-    const s = new THREE.Shape()
-    s.moveTo(-0.15, 0)
-    s.lineTo(-0.15, 0.35)
-    s.quadraticCurveTo(-0.15, 0.55, 0, 0.6)
-    s.quadraticCurveTo(0.15, 0.55, 0.15, 0.35)
-    s.lineTo(0.15, 0)
-    s.closePath()
-    return s
-  }, [])
-
-  const extrudeSettings = useMemo(() => ({
-    depth: 0.06,
-    bevelEnabled: true,
-    bevelThickness: 0.02,
-    bevelSize: 0.02,
-    bevelSegments: 8,
-  }), [])
-
-  return (
-    <mesh position={position} rotation={[0, Math.PI / 2, 0]}>
-      <extrudeGeometry args={[shape, extrudeSettings]} />
-      <MeshTransmissionMaterial
-        color="#c4e4ff"
-        roughness={0.5}
-        transmission={0.6}
-        thickness={0.2}
-        chromaticAberration={0.01}
-        envMapIntensity={0.1}
-      />
-    </mesh>
-  )
-}
-
-function SideLever({ position }: { position: [number, number, number] }) {
-  return (
-    <group position={position}>
-      <mesh>
-        <boxGeometry args={[0.02, 0.2, 0.08]} />
-        <meshPhysicalMaterial
-          color="#ffffff"
-          roughness={0.5}
-          metalness={0}
-          transparent
-          opacity={0.88}
-        />
-      </mesh>
-    </group>
-  )
-}
-
-function FrontDial({ position }: { position: [number, number, number] }) {
-  return (
-    <mesh position={position} rotation={[0, 0, Math.PI / 2]}>
-      <cylinderGeometry args={[0.06, 0.06, 0.02, 32]} />
-      <meshPhysicalMaterial
-        color="#ffffff"
-        roughness={0.5}
-        metalness={0}
-        transparent
-        opacity={0.88}
-      />
-    </mesh>
-  )
-}
-
-function SlotTop({ position }: { position: [number, number, number] }) {
-  return (
-    <mesh position={position}>
-      <boxGeometry args={[0.6, 0.02, 0.15]} />
-      <meshPhysicalMaterial
-        color="#90c8ff"
-        roughness={0.5}
-        metalness={0}
-        transparent
-        opacity={0.5}
-      />
-    </mesh>
-  )
-}
+import { BettaFish, type TailPresetKey } from '../fish'
+import Bubbles from '../effects/Bubbles'
+import FishFood from '../effects/FishFood'
+import type { FoodPellet, Bounds } from '../types'
+import { useGradientTexture, useRemapUVsByY } from '../hooks'
 
 const BOUNDS_MARGIN = 0.4
 const MODEL_SCALE = 4
@@ -223,7 +68,7 @@ export default function FrostedGlassBox({ tailPreset }: { tailPreset: TailPreset
     return { waterGeo: water, glassGeo: glass, otherScene: cloned }
   }, [scene])
 
-  const orbBounds = useMemo(() => {
+  const orbBounds: Bounds = useMemo(() => {
     const geo = waterGeo ?? glassGeo
     if (!geo) return { x: 0.6, y: 0.6, z: 0.6 }
     geo.computeBoundingBox()

@@ -1,210 +1,34 @@
 import { useRef, useMemo, useEffect } from 'react'
 import { useFrame } from '@react-three/fiber'
 import * as THREE from 'three'
-import { FoodPellet } from './FishFood'
-
-// ── Tail presets ──
-
-export const TAIL_PRESETS = {
-  plakat:     { rayCount: 12, spread: 130, length: 0.95, droop: 0,    branchDepth: 0, recession: 0,    doubled: false, lenShape: 'round',      label: '플라캇' },
-  delta:      { rayCount: 14, spread: 150, length: 1.30, droop: 0,    branchDepth: 0, recession: 0,    doubled: false, lenShape: 'flat',       label: '델타' },
-  halfmoon:   { rayCount: 18, spread: 180, length: 1.40, droop: 0,    branchDepth: 0, recession: 0,    doubled: false, lenShape: 'flat',       label: '하프문' },
-  crowntail:  { rayCount: 14, spread: 180, length: 1.45, droop: 0,    branchDepth: 0, recession: 0.40, doubled: false, lenShape: 'flat',       label: '크라운테일' },
-  rosetail:   { rayCount: 12, spread: 195, length: 1.25, droop: 0,    branchDepth: 2, recession: 0,    doubled: false, lenShape: 'flat',       label: '로즈테일' },
-  veiltail:   { rayCount: 14, spread: 130, length: 1.55, droop: 0.75, branchDepth: 0, recession: 0,    doubled: false, lenShape: 'asymmetric', label: '베일테일' },
-  doubletail: { rayCount: 9,  spread: 65,  length: 1.20, droop: 0,    branchDepth: 0, recession: 0,    doubled: true,  lenShape: 'flat',       label: '더블테일' },
-} as const
-
-export type TailPresetKey = keyof typeof TAIL_PRESETS
-
-type TailPreset = typeof TAIL_PRESETS[TailPresetKey]
+import type { FoodPellet, Bounds } from '../types'
+import { TAIL_PRESETS, type TailPresetKey } from './tailPresets'
+import { generateTail } from './tailGeometry'
+import { memMat, rayMat } from './materials'
+import {
+  FISH_SCALE, BODY_SCALE, TAIL_SCALE,
+  PECTORAL_SCALE, DORSAL_SCALE, ANAL_SCALE,
+  MAX_SPEED, MIN_SPEED, WALL_MARGIN, WALL_STRENGTH,
+  ARRIVE_MAX_SPEED, ARRIVE_MAX_FORCE, ARRIVE_RADIUS,
+  MAX_HEADING_DELTA, MAX_ANG_VEL,
+  WAVE_AMP, WAVE_SPEED, WAVE_K, BODY_WAVE_AMP,
+  BODY_RADIUS_X, BODY_RADIUS_Y, BODY_RADIUS_Z,
+  BODY_CENTER_X, BODY_CENTER_Y,
+  PECTORAL_FIN, PECTORAL_X, PECTORAL_Y, PECTORAL_Z,
+  DORSAL_FIN, DORSAL_X, DORSAL_Y,
+  ANAL_FIN, ANAL_X, ANAL_Y,
+  _acc, _desired, _steer, _wall, _tmp,
+  _lookMat, _up, _origin, _targetQuat,
+  _baseBodyEmissive, _baseMemEmissive, _glowEmissive, _lerpColor,
+} from './constants'
 
 interface BettaFishProps {
   mouseTarget: React.RefObject<THREE.Vector3 | null>
   isHovered: React.RefObject<boolean>
-  bounds: { x: number; y: number; z: number }
+  bounds: Bounds
   tailPreset: TailPresetKey
   foodPellets: { current: FoodPellet[] }
 }
-
-const FISH_SCALE = 0.2
-const BODY_SCALE = 1.3
-const TAIL_SCALE = 1.0
-
-// ── Fin size multipliers ──
-const PECTORAL_SCALE = 1.5
-const DORSAL_SCALE = 2
-const ANAL_SCALE = 1.5
-
-const MAX_SPEED = 0.35
-const MIN_SPEED = 0.12
-const WALL_MARGIN = 0.30
-const WALL_STRENGTH = 0.025
-
-const ARRIVE_MAX_SPEED = 0.5
-const ARRIVE_MAX_FORCE = 0.03
-const ARRIVE_RADIUS = 0.35
-
-const MAX_HEADING_DELTA = 0.15
-const MAX_ANG_VEL = 0.06
-
-const WAVE_AMP = 0.45
-const WAVE_SPEED = 3.2
-const WAVE_K = 5.5
-const BODY_WAVE_AMP = 0.08
-
-const _acc = new THREE.Vector3()
-const _desired = new THREE.Vector3()
-const _steer = new THREE.Vector3()
-const _wall = new THREE.Vector3()
-const _tmp = new THREE.Vector3()
-const _lookMat = new THREE.Matrix4()
-const _up = new THREE.Vector3(0, 1, 0)
-const _origin = new THREE.Vector3(0, 0, 0)
-const _targetQuat = new THREE.Quaternion()
-
-const _baseBodyEmissive = new THREE.Color('#802018')
-const _baseMemEmissive = new THREE.Color('#a03020')
-const _glowEmissive = new THREE.Color('#ff8050')
-const _lerpColor = new THREE.Color()
-
-// ── Tail generation (ported from betta-swimmer.html) ──
-
-function lengthFn(t: number, shape: string) {
-  if (shape === 'round') return 0.85 + 0.15 * Math.sin(t * Math.PI)
-  if (shape === 'asymmetric') return 1.0 - 0.45 * t
-  return 1.0
-}
-
-function makeRay(angle: number, len: number, droop: number, segs: number) {
-  const pts: { x: number; y: number }[] = []
-  for (let s = 0; s <= segs; s++) {
-    const t = s / segs
-    const r = len * t
-    pts.push({
-      x: Math.cos(angle) * r,
-      y: Math.sin(angle) * r - droop * t * t * len * 0.5,
-    })
-  }
-  return pts
-}
-
-function branchRay(
-  ray: { x: number; y: number }[],
-  depth: number,
-  splitT: number,
-  spread: number,
-): { x: number; y: number }[][] {
-  if (depth === 0) return [ray]
-  const splitIdx = Math.max(2, Math.floor(ray.length * splitT))
-  if (splitIdx >= ray.length - 2) return [ray]
-  const trunk = ray.slice(0, splitIdx + 1)
-  const tipPt = ray[ray.length - 1], split = ray[splitIdx]
-  const dx = tipPt.x - split.x, dy = tipPt.y - split.y
-  const remainLen = Math.sqrt(dx * dx + dy * dy)
-  const baseAng = Math.atan2(dy, dx)
-  const out: { x: number; y: number }[][] = []
-  for (let k = 0; k < 2; k++) {
-    const sign = k === 0 ? -1 : 1
-    const newAng = baseAng + sign * spread
-    const segs = ray.length - 1 - splitIdx
-    const tailPts: { x: number; y: number }[] = []
-    for (let s = 1; s <= segs; s++) {
-      const r = remainLen * (s / segs)
-      tailPts.push({
-        x: split.x + Math.cos(newAng) * r,
-        y: split.y + Math.sin(newAng) * r,
-      })
-    }
-    const child = branchRay(trunk.concat(tailPts), depth - 1, 0.7, spread * 0.6)
-    for (const c of child) out.push(c)
-  }
-  return out
-}
-
-function generateTail(p: TailPreset) {
-  const halfSpread = (p.spread * Math.PI / 180) / 2
-  const fans = p.doubled
-    ? [
-        { centerAng: halfSpread + 0.13, halfSpread },
-        { centerAng: -(halfSpread + 0.13), halfSpread },
-      ]
-    : [{ centerAng: 0, halfSpread }]
-
-  const allRays: { x: number; y: number }[][] = []
-  const memTris: number[] = []
-
-  for (const fan of fans) {
-    const fanRays: { x: number; y: number }[][] = []
-    for (let i = 0; i < p.rayCount; i++) {
-      const rc = p.rayCount as number
-      const t = rc === 1 ? 0.5 : i / (rc - 1)
-      const ang = fan.centerAng - fan.halfSpread + t * 2 * fan.halfSpread
-      const len = p.length * lengthFn(t, p.lenShape)
-      const ray = makeRay(ang, len, p.droop, 22)
-      const branches = branchRay(ray, p.branchDepth, 0.6, 0.13)
-      for (const b of branches) fanRays.push(b)
-    }
-    for (const r of fanRays) allRays.push(r)
-    for (let i = 0; i < fanRays.length - 1; i++) {
-      const a = fanRays[i], b = fanRays[i + 1]
-      const minLen = Math.min(a.length, b.length)
-      const limit = Math.floor(minLen * (1 - p.recession))
-      for (let j = 0; j < limit - 1; j++) {
-        memTris.push(
-          a[j].x, a[j].y, 0, b[j].x, b[j].y, 0, a[j + 1].x, a[j + 1].y, 0,
-          b[j].x, b[j].y, 0, b[j + 1].x, b[j + 1].y, 0, a[j + 1].x, a[j + 1].y, 0,
-        )
-      }
-    }
-  }
-  return { rays: allRays, membrane: memTris }
-}
-
-// Body: ellipsoid via scaled sphere
-const BODY_RADIUS_X = 0.7
-const BODY_RADIUS_Y = 0.25
-const BODY_RADIUS_Z = 0.18
-const BODY_CENTER_X = -0.7
-const BODY_CENTER_Y = 0.03
-
-// Pectoral fin (fixed, doesn't change with tail type)
-const PECTORAL_FIN = {
-  rayCount: 5, spread: 80, length: 0.3, droop: 0,
-  branchDepth: 0, recession: 0, doubled: false, lenShape: 'round',
-}
-const PECTORAL_X = -0.95
-const PECTORAL_Y = -0.05
-const PECTORAL_Z = 0.17
-
-// Dorsal fin (short veiltail shape, fixed)
-const DORSAL_FIN = {
-  rayCount: 8, spread: 100, length: 0.35, droop: 0.3,
-  branchDepth: 0, recession: 0, doubled: false, lenShape: 'asymmetric',
-}
-const DORSAL_X = -0.5
-const DORSAL_Y = 0.2
-
-// Anal fin (short veiltail shape, fixed)
-const ANAL_FIN = {
-  rayCount: 8, spread: 90, length: 0.3, droop: 0.3,
-  branchDepth: 0, recession: 0, doubled: false, lenShape: 'asymmetric',
-}
-const ANAL_X = -0.3
-const ANAL_Y = -0.2
-
-// Shared tail materials
-const memMat = new THREE.MeshStandardMaterial({
-  color: '#e2604f',
-  emissive: '#a03020',
-  emissiveIntensity: 0.5,
-  transparent: true,
-  opacity: 0.55,
-  side: THREE.DoubleSide,
-})
-const rayMat = new THREE.LineBasicMaterial({ color: 0x862828 })
-
-// ── Component ──
 
 export default function BettaFish({ mouseTarget, isHovered, bounds, tailPreset, foodPellets }: BettaFishProps) {
   const fishOriginRef = useRef<THREE.Group>(null)
@@ -438,7 +262,6 @@ export default function BettaFish({ mouseTarget, isHovered, bounds, tailPreset, 
     const dt = Math.min(delta, 0.05)
     const t = state.clock.elapsedTime
 
-    // ── Steering ──
     _acc.set(0, 0, 0)
 
     let seekingFood = false
@@ -496,7 +319,6 @@ export default function BettaFish({ mouseTarget, isHovered, bounds, tailPreset, 
       _acc.z += Math.sin(t * 0.55 + 1.2) * 0.004 + Math.sin(t * 0.95 + 2.5) * 0.003
     }
 
-    // Smooth wall repulsion (always active, both modes)
     _wall.set(0, 0, 0)
     const px = pos.current.x, py = pos.current.y, pz = pos.current.z
     const axes: [number, number, 'x' | 'y' | 'z'][] = [
@@ -531,7 +353,6 @@ export default function BettaFish({ mouseTarget, isHovered, bounds, tailPreset, 
     pos.current.y = THREE.MathUtils.clamp(pos.current.y, -bounds.y, bounds.y)
     pos.current.z = THREE.MathUtils.clamp(pos.current.z, -bounds.z, bounds.z)
 
-    // ── Orient fish along velocity (slerp for smooth turning) ──
     fishOriginRef.current.position.copy(pos.current)
     if (vel.current.length() > 0.04) {
       _lookMat.lookAt(vel.current, _origin, _up)
@@ -539,7 +360,6 @@ export default function BettaFish({ mouseTarget, isHovered, bounds, tailPreset, 
       fishOriginRef.current.quaternion.slerp(_targetQuat, Math.min(dt * 6, 1))
     }
 
-    // ── Angular velocity tracking (for tail bend) ──
     const heading = Math.atan2(vel.current.x, vel.current.z)
     let hd = heading - prevHeading.current
     if (hd > Math.PI) hd -= 2 * Math.PI
@@ -550,7 +370,6 @@ export default function BettaFish({ mouseTarget, isHovered, bounds, tailPreset, 
     smoothAngVel.current = THREE.MathUtils.clamp(smoothAngVel.current, -MAX_ANG_VEL, MAX_ANG_VEL)
     prevHeading.current = heading
 
-    // ── Body & tail wave ──
     const speedFactor = Math.max(vel.current.length() / MAX_SPEED, 0.15)
     wavePhase.current += dt * WAVE_SPEED * (0.7 + 0.5 * speedFactor)
 
@@ -558,22 +377,20 @@ export default function BettaFish({ mouseTarget, isHovered, bounds, tailPreset, 
     const angV = smoothAngVel.current
     const bodyLen = BODY_RADIUS_X * 2
 
-    // Body vertex deformation
     const bodyPos = bodyState.geo.attributes.position as THREE.BufferAttribute
     for (let i = 0; i < bodyPos.count; i++) {
       const ox = bodyState.original[i * 3]
       const oy = bodyState.original[i * 3 + 1]
       const oz = bodyState.original[i * 3 + 2]
-      const t = (ox - (BODY_CENTER_X - BODY_RADIUS_X)) / bodyLen
-      const t15 = Math.pow(t, 1.5)
-      const wave = BODY_WAVE_AMP * speedFactor * t15 * Math.sin(wp - t * WAVE_K)
+      const tVal = (ox - (BODY_CENTER_X - BODY_RADIUS_X)) / bodyLen
+      const t15 = Math.pow(tVal, 1.5)
+      const wave = BODY_WAVE_AMP * speedFactor * t15 * Math.sin(wp - tVal * WAVE_K)
       const bend = -angV * 2.0 * t15
       bodyPos.setXYZ(i, ox, oy, oz + wave + bend)
     }
     bodyPos.needsUpdate = true
     bodyState.geo.computeVertexNormals()
 
-    // Eye tracking (follow body wave at eye x-position)
     if (eyeGroupRef.current) {
       const eyeT = (BODY_CENTER_X - 0.48 - (BODY_CENTER_X - BODY_RADIUS_X)) / bodyLen
       const eyeT15 = Math.pow(Math.max(eyeT, 0), 1.5)
@@ -582,7 +399,6 @@ export default function BettaFish({ mouseTarget, isHovered, bounds, tailPreset, 
       eyeGroupRef.current.position.z = eyeZ
     }
 
-    // ── Pectoral fin body wave tracking ──
     if (pectoralWrapRef.current) {
       const pecT = (PECTORAL_X - (BODY_CENTER_X - BODY_RADIUS_X)) / bodyLen
       const pecT15 = Math.pow(Math.max(pecT, 0), 1.5)
@@ -591,7 +407,6 @@ export default function BettaFish({ mouseTarget, isHovered, bounds, tailPreset, 
       pectoralWrapRef.current.position.z = pecZ
     }
 
-    // ── Pectoral fin wave deformation ──
     const pecPhase = wp * 1.5 + Math.PI * 0.7
     const pecWaveAmp = 0.15
     const pecFinLen = pectoralState.finLen
@@ -630,7 +445,6 @@ export default function BettaFish({ mouseTarget, isHovered, bounds, tailPreset, 
       }
     }
 
-    // ── Dorsal / Anal fin body wave tracking ──
     if (dorsalRef.current) {
       const dT = (DORSAL_X - (BODY_CENTER_X - BODY_RADIUS_X)) / bodyLen
       const dT15 = Math.pow(Math.max(dT, 0), 1.5)
@@ -644,7 +458,6 @@ export default function BettaFish({ mouseTarget, isHovered, bounds, tailPreset, 
         - angV * 2.0 * aT15
     }
 
-    // ── Dorsal / Anal fin wave deformation ──
     const daWaveAmp = 0.18
     for (const finState of [dorsalState, analState]) {
       for (let i = 0; i < finState.memLive.length; i += 3) {
@@ -682,8 +495,6 @@ export default function BettaFish({ mouseTarget, isHovered, bounds, tailPreset, 
       }
     }
 
-    // ── Tail deformation (traveling wave + turn bend) ──
-
     const { memOriginal, memLive, memGeo, rayBufs, tailLen } = tailState
 
     for (let i = 0; i < memLive.length; i += 3) {
@@ -720,7 +531,6 @@ export default function BettaFish({ mouseTarget, isHovered, bounds, tailPreset, 
       buf.geo.attributes.position.needsUpdate = true
     }
 
-    // ── Glow animation (after eating) ──
     if (glowRef.current > 0) {
       glowRef.current = Math.max(0, glowRef.current - dt * 0.7)
     }
