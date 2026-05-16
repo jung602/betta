@@ -1,6 +1,7 @@
 import { useRef, useMemo, useEffect } from 'react'
 import { useFrame } from '@react-three/fiber'
 import * as THREE from 'three'
+import { FoodPellet } from './FishFood'
 
 // ── Tail presets ──
 
@@ -23,6 +24,7 @@ interface BettaFishProps {
   isHovered: React.RefObject<boolean>
   bounds: { x: number; y: number; z: number }
   tailPreset: TailPresetKey
+  foodPellets: { current: FoodPellet[] }
 }
 
 const FISH_SCALE = 0.2
@@ -60,6 +62,11 @@ const _lookMat = new THREE.Matrix4()
 const _up = new THREE.Vector3(0, 1, 0)
 const _origin = new THREE.Vector3(0, 0, 0)
 const _targetQuat = new THREE.Quaternion()
+
+const _baseBodyEmissive = new THREE.Color('#802018')
+const _baseMemEmissive = new THREE.Color('#a03020')
+const _glowEmissive = new THREE.Color('#ff8050')
+const _lerpColor = new THREE.Color()
 
 // ── Tail generation (ported from betta-swimmer.html) ──
 
@@ -199,7 +206,7 @@ const rayMat = new THREE.LineBasicMaterial({ color: 0x862828 })
 
 // ── Component ──
 
-export default function BettaFish({ mouseTarget, isHovered, bounds, tailPreset }: BettaFishProps) {
+export default function BettaFish({ mouseTarget, isHovered, bounds, tailPreset, foodPellets }: BettaFishProps) {
   const fishOriginRef = useRef<THREE.Group>(null)
   const tailGroupRef = useRef<THREE.Group>(null)
   const eyeGroupRef = useRef<THREE.Group>(null)
@@ -208,6 +215,9 @@ export default function BettaFish({ mouseTarget, isHovered, bounds, tailPreset }
   const pectoralWrapRef = useRef<THREE.Group>(null)
   const dorsalRef = useRef<THREE.Group>(null)
   const analRef = useRef<THREE.Group>(null)
+
+  const bodyMatRef = useRef<THREE.MeshStandardMaterial>(null)
+  const glowRef = useRef(0)
 
   const pos = useRef(new THREE.Vector3(0, 0, 0))
   const vel = useRef(new THREE.Vector3(0.2, 0, 0.15).setLength(MIN_SPEED))
@@ -431,7 +441,39 @@ export default function BettaFish({ mouseTarget, isHovered, bounds, tailPreset }
     // ── Steering ──
     _acc.set(0, 0, 0)
 
-    if (isHovered.current && mouseTarget.current) {
+    let seekingFood = false
+    const pellets = foodPellets.current
+    if (pellets.length > 0) {
+      let nearestDist = Infinity
+      let nearestPellet: FoodPellet | null = null
+      for (const p of pellets) {
+        if (!p.alive) continue
+        const d = _tmp.copy(p.position).sub(pos.current).length()
+        if (d < nearestDist) {
+          nearestDist = d
+          nearestPellet = p
+        }
+      }
+      if (nearestPellet) {
+        seekingFood = true
+        if (nearestDist < 0.25) {
+          nearestPellet.alive = false
+          glowRef.current = 1.0
+        } else {
+          _desired.copy(nearestPellet.position).sub(pos.current)
+          const dist = _desired.length()
+          const speed = dist < ARRIVE_RADIUS
+            ? (dist / ARRIVE_RADIUS) * ARRIVE_MAX_SPEED * 1.2
+            : ARRIVE_MAX_SPEED * 1.2
+          _desired.normalize().multiplyScalar(speed)
+          _steer.copy(_desired).sub(vel.current)
+          if (_steer.length() > ARRIVE_MAX_FORCE * 1.5) _steer.setLength(ARRIVE_MAX_FORCE * 1.5)
+          _acc.add(_steer)
+        }
+      }
+    }
+
+    if (!seekingFood && isHovered.current && mouseTarget.current) {
       _desired.copy(mouseTarget.current).sub(pos.current)
       const dist = _desired.length()
       if (dist < 0.08) {
@@ -448,7 +490,7 @@ export default function BettaFish({ mouseTarget, isHovered, bounds, tailPreset }
           vel.current.multiplyScalar(0.95)
         }
       }
-    } else {
+    } else if (!seekingFood) {
       _acc.x += Math.sin(t * 0.42) * 0.004 + Math.sin(t * 1.13 + 1.5) * 0.003
       _acc.y += Math.sin(t * 0.35 + 2) * 0.002
       _acc.z += Math.sin(t * 0.55 + 1.2) * 0.004 + Math.sin(t * 0.95 + 2.5) * 0.003
@@ -677,6 +719,20 @@ export default function BettaFish({ mouseTarget, isHovered, bounds, tailPreset }
       }
       buf.geo.attributes.position.needsUpdate = true
     }
+
+    // ── Glow animation (after eating) ──
+    if (glowRef.current > 0) {
+      glowRef.current = Math.max(0, glowRef.current - dt * 0.7)
+    }
+    const glow = glowRef.current
+    if (bodyMatRef.current) {
+      bodyMatRef.current.emissiveIntensity = 1.0 + glow * 7.0
+      _lerpColor.copy(_baseBodyEmissive).lerp(_glowEmissive, glow)
+      bodyMatRef.current.emissive.copy(_lerpColor)
+    }
+    memMat.emissiveIntensity = 0.5 + glow * 7.0
+    _lerpColor.copy(_baseMemEmissive).lerp(_glowEmissive, glow)
+    memMat.emissive.copy(_lerpColor)
   })
 
   return (
@@ -685,6 +741,7 @@ export default function BettaFish({ mouseTarget, isHovered, bounds, tailPreset }
         <group scale={BODY_SCALE}>
           <mesh geometry={bodyState.geo}>
             <meshStandardMaterial
+              ref={bodyMatRef}
               color="#c04030"
               emissive="#802018"
               emissiveIntensity={1}

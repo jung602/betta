@@ -1,14 +1,13 @@
 import { useState } from 'react'
 import { Canvas } from '@react-three/fiber'
 import { Environment, ContactShadows, OrbitControls } from '@react-three/drei'
-import FrostedGlassBox, { ShapeType } from './FrostedGlassBox'
+import FrostedGlassBox from './FrostedGlassBox'
 import { TAIL_PRESETS, TailPresetKey } from './BettaFish'
 
 const presetKeys = Object.keys(TAIL_PRESETS) as TailPresetKey[]
 
 export default function Scene() {
   const [tailPreset, setTailPreset] = useState<TailPresetKey>('halfmoon')
-  const [shape, setShape] = useState<ShapeType>('box')
 
   return (
     <div style={{
@@ -46,7 +45,7 @@ export default function Scene() {
         <pointLight position={[0, 2, 3]} intensity={0.8} color="#dceeff" />
         <pointLight position={[-2, 1, 1]} intensity={0.4} color="#b0d4ff" />
 
-        <FrostedGlassBox tailPreset={tailPreset} shape={shape} />
+        <FrostedGlassBox tailPreset={tailPreset} />
 
         <ContactShadows
           position={[0, -0.8, 0]}
@@ -80,29 +79,6 @@ export default function Scene() {
         alignItems: 'center',
         gap: 10,
       }}>
-        <div style={{ display: 'flex', gap: 6 }}>
-          {(['box', 'sphere'] as ShapeType[]).map(s => (
-            <button
-              key={s}
-              onClick={() => setShape(s)}
-              style={{
-                padding: '7px 18px',
-                fontSize: 13,
-                fontFamily: '-apple-system, BlinkMacSystemFont, "Apple SD Gothic Neo", system-ui, sans-serif',
-                fontWeight: shape === s ? 500 : 400,
-                background: shape === s ? 'rgba(74, 144, 232, 0.12)' : 'rgba(255,255,255,0.7)',
-                color: shape === s ? '#4a90e8' : '#445',
-                border: shape === s ? '1px solid rgba(74, 144, 232, 0.35)' : '1px solid rgba(0,0,0,0.1)',
-                borderRadius: 999,
-                cursor: 'pointer',
-                backdropFilter: 'blur(8px)',
-                transition: 'all 0.15s ease',
-              }}
-            >
-              {s === 'box' ? '박스' : '스피어'}
-            </button>
-          ))}
-        </div>
         <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', justifyContent: 'center' }}>
           {presetKeys.map(key => (
             <button
