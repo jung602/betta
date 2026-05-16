@@ -11,4 +11,6 @@ export interface Bounds {
   x: number
   y: number
   z: number
+  shape: 'box' | 'cylinder'
+  radius: number
 }

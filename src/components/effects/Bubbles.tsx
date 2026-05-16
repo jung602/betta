@@ -4,17 +4,17 @@ import * as THREE from 'three'
 
 const MAX_BUBBLES = 40
 const SPAWN_INTERVAL = 0.4
-const SPAWN_SPREAD_X = 0.15
-const SPAWN_SPREAD_Z = 0.15
-const SPAWN_Y = -0.85
-const CEIL_Y = 0.75
+const SPAWN_SPREAD_X = 0.0375
+const SPAWN_SPREAD_Z = 0.0375
+const SPAWN_Y = -0.2125
+const CEIL_Y = 0.1875
 
-const BUOYANCY_MIN = 0.25
-const BUOYANCY_MAX = 0.55
-const WOBBLE_AMP = 0.12
+const BUOYANCY_MIN = 0.0625
+const BUOYANCY_MAX = 0.1375
+const WOBBLE_AMP = 0.03
 const WOBBLE_SPEED = 2.8
-const SIZE_MIN = 0.018
-const SIZE_MAX = 0.055
+const SIZE_MIN = 0.0045
+const SIZE_MAX = 0.01375
 
 interface BubbleData {
   mesh: THREE.Mesh
@@ -108,7 +108,7 @@ export default function Bubbles() {
 
       if (Math.random() < 0.3 && pool.length < MAX_BUBBLES) {
         const extra = createBubble()
-        extra.mesh.position.x += (Math.random() - 0.5) * 0.05
+        extra.mesh.position.x += (Math.random() - 0.5) * 0.0125
         extra.baseSize *= 0.6 + Math.random() * 0.3
         pool.push(extra)
         group.add(extra.mesh)
@@ -120,8 +120,8 @@ export default function Bubbles() {
       b.mesh.position.y += b.vy * dt
       b.mesh.position.x += Math.sin(t * WOBBLE_SPEED + b.wobblePhase) * b.wobbleAmpX * dt
       b.mesh.position.z += Math.cos(t * WOBBLE_SPEED * 0.7 + b.wobblePhase + 1.3) * b.wobbleAmpZ * dt
-      b.vy += 0.03 * dt
-      b.baseSize *= 1.0 + 0.08 * dt
+      b.vy += 0.0075 * dt
+      b.baseSize *= 1.0 + 0.02 * dt
 
       if (b.mesh.position.y > CEIL_Y) {
         b.life -= b.decay * 4
@@ -131,7 +131,7 @@ export default function Bubbles() {
       const s = b.baseSize * breathe * Math.max(b.life, 0)
       b.mesh.scale.setScalar(s)
 
-      if (b.life <= 0 || b.mesh.position.y > CEIL_Y + 0.2) {
+      if (b.life <= 0 || b.mesh.position.y > CEIL_Y + 0.05) {
         group.remove(b.mesh)
         pool.splice(i, 1)
       }

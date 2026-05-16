@@ -1,1 +1,1 @@
-export { default as FrostedGlassBox } from './FrostedGlassBox'
+export { default as FrostedGlassBox, TANK_MODELS, type TankModelKey } from './FrostedGlassBox'

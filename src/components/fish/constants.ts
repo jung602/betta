@@ -1,7 +1,7 @@
 import * as THREE from 'three'
 
 // ── Fish scaling ──
-export const FISH_SCALE = 0.2
+export const FISH_SCALE = 0.05
 export const BODY_SCALE = 1.3
 export const TAIL_SCALE = 1.0
 
@@ -11,14 +11,14 @@ export const DORSAL_SCALE = 2
 export const ANAL_SCALE = 1.5
 
 // ── Movement ──
-export const MAX_SPEED = 0.35
-export const MIN_SPEED = 0.12
-export const WALL_MARGIN = 0.30
-export const WALL_STRENGTH = 0.025
+export const MAX_SPEED = 0.0875
+export const MIN_SPEED = 0.03
+export const WALL_MARGIN = 0.075
+export const WALL_STRENGTH = 0.00625
 
-export const ARRIVE_MAX_SPEED = 0.5
-export const ARRIVE_MAX_FORCE = 0.03
-export const ARRIVE_RADIUS = 0.35
+export const ARRIVE_MAX_SPEED = 0.125
+export const ARRIVE_MAX_FORCE = 0.0075
+export const ARRIVE_RADIUS = 0.0875
 
 export const MAX_HEADING_DELTA = 0.15
 export const MAX_ANG_VEL = 0.06
@@ -74,8 +74,6 @@ export const _up = new THREE.Vector3(0, 1, 0)
 export const _origin = new THREE.Vector3(0, 0, 0)
 export const _targetQuat = new THREE.Quaternion()
 
-// ── Glow colors ──
-export const _baseBodyEmissive = new THREE.Color('#802018')
-export const _baseMemEmissive = new THREE.Color('#a03020')
-export const _glowEmissive = new THREE.Color('#ff8050')
+// ── Color references ──
+export const _baseMemColor = new THREE.Color('#e2604f')
 export const _lerpColor = new THREE.Color()

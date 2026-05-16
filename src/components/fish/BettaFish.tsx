@@ -19,7 +19,7 @@ import {
   ANAL_FIN, ANAL_X, ANAL_Y,
   _acc, _desired, _steer, _wall, _tmp,
   _lookMat, _up, _origin, _targetQuat,
-  _baseBodyEmissive, _baseMemEmissive, _glowEmissive, _lerpColor,
+  _baseMemColor, _lerpColor,
 } from './constants'
 
 interface BettaFishProps {
@@ -53,6 +53,21 @@ export default function BettaFish({ mouseTarget, isHovered, bounds, tailPreset, 
     const geo = new THREE.SphereGeometry(1, 20, 14)
     const posAttr = geo.attributes.position as THREE.BufferAttribute
     const original = new Float32Array(posAttr.count * 3)
+    const colors = new Float32Array(posAttr.count * 3)
+
+    const headColor = new THREE.Color('#6B1510')
+    const midColor = new THREE.Color('#c04030')
+    const tailColor = new THREE.Color('#e86850')
+    const bellyTint = new THREE.Color('#d4a090')
+    const tmpColor = new THREE.Color()
+
+    const minX = BODY_CENTER_X - BODY_RADIUS_X
+    const maxX = BODY_CENTER_X + BODY_RADIUS_X
+    const rangeX = maxX - minX
+    const minY = BODY_CENTER_Y - BODY_RADIUS_Y
+    const maxY = BODY_CENTER_Y + BODY_RADIUS_Y
+    const rangeY = maxY - minY
+
     for (let i = 0; i < posAttr.count; i++) {
       const x = posAttr.getX(i) * BODY_RADIUS_X + BODY_CENTER_X
       const y = posAttr.getY(i) * BODY_RADIUS_Y + BODY_CENTER_Y
@@ -61,10 +76,28 @@ export default function BettaFish({ mouseTarget, isHovered, bounds, tailPreset, 
       original[i * 3] = x
       original[i * 3 + 1] = y
       original[i * 3 + 2] = z
+
+      const tx = (x - minX) / rangeX
+      if (tx < 0.5) {
+        tmpColor.copy(headColor).lerp(midColor, tx * 2)
+      } else {
+        tmpColor.copy(midColor).lerp(tailColor, (tx - 0.5) * 2)
+      }
+
+      const ty = (y - minY) / rangeY
+      const bellyFactor = Math.pow(1 - ty, 2) * 0.25
+      tmpColor.lerp(bellyTint, bellyFactor)
+
+      colors[i * 3] = tmpColor.r
+      colors[i * 3 + 1] = tmpColor.g
+      colors[i * 3 + 2] = tmpColor.b
     }
+
     posAttr.needsUpdate = true
+    const originalColors = new Float32Array(colors)
+    geo.setAttribute('color', new THREE.BufferAttribute(colors, 3))
     geo.computeVertexNormals()
-    return { geo, original }
+    return { geo, original, originalColors }
   }, [])
 
   const pectoralState = useMemo(() => {
@@ -279,7 +312,7 @@ export default function BettaFish({ mouseTarget, isHovered, bounds, tailPreset, 
       }
       if (nearestPellet) {
         seekingFood = true
-        if (nearestDist < 0.25) {
+        if (nearestDist < 0.0625) {
           nearestPellet.alive = false
           glowRef.current = 1.0
         } else {
@@ -299,7 +332,7 @@ export default function BettaFish({ mouseTarget, isHovered, bounds, tailPreset, 
     if (!seekingFood && isHovered.current && mouseTarget.current) {
       _desired.copy(mouseTarget.current).sub(pos.current)
       const dist = _desired.length()
-      if (dist < 0.08) {
+      if (dist < 0.02) {
         vel.current.multiplyScalar(0.8)
       } else {
         const speed = dist < ARRIVE_RADIUS
@@ -314,26 +347,48 @@ export default function BettaFish({ mouseTarget, isHovered, bounds, tailPreset, 
         }
       }
     } else if (!seekingFood) {
-      _acc.x += Math.sin(t * 0.42) * 0.004 + Math.sin(t * 1.13 + 1.5) * 0.003
-      _acc.y += Math.sin(t * 0.35 + 2) * 0.002
-      _acc.z += Math.sin(t * 0.55 + 1.2) * 0.004 + Math.sin(t * 0.95 + 2.5) * 0.003
+      _acc.x += Math.sin(t * 0.42) * 0.001 + Math.sin(t * 1.13 + 1.5) * 0.00075
+      _acc.y += Math.sin(t * 0.35 + 2) * 0.0005
+      _acc.z += Math.sin(t * 0.55 + 1.2) * 0.001 + Math.sin(t * 0.95 + 2.5) * 0.00075
     }
 
     _wall.set(0, 0, 0)
     const px = pos.current.x, py = pos.current.y, pz = pos.current.z
-    const axes: [number, number, 'x' | 'y' | 'z'][] = [
-      [px, bounds.x, 'x'], [py, bounds.y, 'y'], [pz, bounds.z, 'z'],
-    ]
-    for (const [p, b, axis] of axes) {
-      const dPos = b - p
-      const dNeg = b + p
-      if (dPos < WALL_MARGIN) {
-        const f = 1 - dPos / WALL_MARGIN
-        _wall[axis] -= WALL_STRENGTH * f * f
+
+    if (bounds.shape === 'cylinder') {
+      const distXZ = Math.sqrt(px * px + pz * pz)
+      const dRadial = bounds.radius - distXZ
+      if (dRadial < WALL_MARGIN && distXZ > 0.001) {
+        const f = 1 - dRadial / WALL_MARGIN
+        const pushStrength = WALL_STRENGTH * f * f
+        _wall.x -= (px / distXZ) * pushStrength
+        _wall.z -= (pz / distXZ) * pushStrength
       }
-      if (dNeg < WALL_MARGIN) {
-        const f = 1 - dNeg / WALL_MARGIN
-        _wall[axis] += WALL_STRENGTH * f * f
+      const dUp = bounds.y - py
+      const dDown = bounds.y + py
+      if (dUp < WALL_MARGIN) {
+        const f = 1 - dUp / WALL_MARGIN
+        _wall.y -= WALL_STRENGTH * f * f
+      }
+      if (dDown < WALL_MARGIN) {
+        const f = 1 - dDown / WALL_MARGIN
+        _wall.y += WALL_STRENGTH * f * f
+      }
+    } else {
+      const axes: [number, number, 'x' | 'y' | 'z'][] = [
+        [px, bounds.x, 'x'], [py, bounds.y, 'y'], [pz, bounds.z, 'z'],
+      ]
+      for (const [p, b, axis] of axes) {
+        const dPos = b - p
+        const dNeg = b + p
+        if (dPos < WALL_MARGIN) {
+          const f = 1 - dPos / WALL_MARGIN
+          _wall[axis] -= WALL_STRENGTH * f * f
+        }
+        if (dNeg < WALL_MARGIN) {
+          const f = 1 - dNeg / WALL_MARGIN
+          _wall[axis] += WALL_STRENGTH * f * f
+        }
       }
     }
     _acc.add(_wall)
@@ -349,12 +404,23 @@ export default function BettaFish({ mouseTarget, isHovered, bounds, tailPreset, 
     }
 
     pos.current.add(_tmp.copy(vel.current).multiplyScalar(dt))
-    pos.current.x = THREE.MathUtils.clamp(pos.current.x, -bounds.x, bounds.x)
-    pos.current.y = THREE.MathUtils.clamp(pos.current.y, -bounds.y, bounds.y)
-    pos.current.z = THREE.MathUtils.clamp(pos.current.z, -bounds.z, bounds.z)
+
+    if (bounds.shape === 'cylinder') {
+      const distXZ = Math.sqrt(pos.current.x * pos.current.x + pos.current.z * pos.current.z)
+      if (distXZ > bounds.radius) {
+        const scale = bounds.radius / distXZ
+        pos.current.x *= scale
+        pos.current.z *= scale
+      }
+      pos.current.y = THREE.MathUtils.clamp(pos.current.y, -bounds.y, bounds.y)
+    } else {
+      pos.current.x = THREE.MathUtils.clamp(pos.current.x, -bounds.x, bounds.x)
+      pos.current.y = THREE.MathUtils.clamp(pos.current.y, -bounds.y, bounds.y)
+      pos.current.z = THREE.MathUtils.clamp(pos.current.z, -bounds.z, bounds.z)
+    }
 
     fishOriginRef.current.position.copy(pos.current)
-    if (vel.current.length() > 0.04) {
+    if (vel.current.length() > 0.01) {
       _lookMat.lookAt(vel.current, _origin, _up)
       _targetQuat.setFromRotationMatrix(_lookMat)
       fishOriginRef.current.quaternion.slerp(_targetQuat, Math.min(dt * 6, 1))
@@ -535,14 +601,34 @@ export default function BettaFish({ mouseTarget, isHovered, bounds, tailPreset, 
       glowRef.current = Math.max(0, glowRef.current - dt * 0.7)
     }
     const glow = glowRef.current
-    if (bodyMatRef.current) {
-      bodyMatRef.current.emissiveIntensity = 1.0 + glow * 7.0
-      _lerpColor.copy(_baseBodyEmissive).lerp(_glowEmissive, glow)
-      bodyMatRef.current.emissive.copy(_lerpColor)
+
+    const colorAttr = bodyState.geo.attributes.color as THREE.BufferAttribute
+    const hsl = { h: 0, s: 0, l: 0 }
+    for (let i = 0; i < colorAttr.count; i++) {
+      const ri = bodyState.originalColors[i * 3]
+      const gi = bodyState.originalColors[i * 3 + 1]
+      const bi = bodyState.originalColors[i * 3 + 2]
+      if (glow > 0.001) {
+        _lerpColor.setRGB(ri, gi, bi)
+        _lerpColor.getHSL(hsl)
+        hsl.s = Math.min(1, hsl.s + glow * 0.5)
+        _lerpColor.setHSL(hsl.h, hsl.s, hsl.l)
+        colorAttr.setXYZ(i, _lerpColor.r, _lerpColor.g, _lerpColor.b)
+      } else {
+        colorAttr.setXYZ(i, ri, gi, bi)
+      }
     }
-    memMat.emissiveIntensity = 0.5 + glow * 7.0
-    _lerpColor.copy(_baseMemEmissive).lerp(_glowEmissive, glow)
-    memMat.emissive.copy(_lerpColor)
+    colorAttr.needsUpdate = true
+
+    if (glow > 0.001) {
+      _lerpColor.copy(_baseMemColor)
+      _lerpColor.getHSL(hsl)
+      hsl.s = Math.min(1, hsl.s + glow * 0.5)
+      _lerpColor.setHSL(hsl.h, hsl.s, hsl.l)
+      memMat.color.copy(_lerpColor)
+    } else {
+      memMat.color.copy(_baseMemColor)
+    }
   })
 
   return (
@@ -552,7 +638,7 @@ export default function BettaFish({ mouseTarget, isHovered, bounds, tailPreset, 
           <mesh geometry={bodyState.geo}>
             <meshStandardMaterial
               ref={bodyMatRef}
-              color="#c04030"
+              vertexColors
               emissive="#802018"
               emissiveIntensity={1}
             />
