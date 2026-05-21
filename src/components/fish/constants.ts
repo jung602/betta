@@ -3,7 +3,7 @@ import * as THREE from 'three'
 // ── Fish scaling ──
 export const FISH_SCALE = 0.05
 export const BODY_SCALE = 1.3
-export const TAIL_SCALE = 1.0
+export const TAIL_SCALE = 0.9
 
 // ── Fin size multipliers ──
 export const PECTORAL_SCALE = 1.5
@@ -46,6 +46,9 @@ export const DORSAL_Y = 0.2
 
 export const ANAL_X = -0.3
 export const ANAL_Y = -0.2
+
+export const TAIL_X = -0.15
+export const TAIL_Y = -0.08
 
 // ── Fin presets (fixed, don't change with tail type) ──
 export const PECTORAL_FIN = {

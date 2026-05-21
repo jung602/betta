@@ -8,7 +8,10 @@ import FishFood from '../effects/FishFood'
 import type { FoodPellet, Bounds } from '../types'
 import { useGradientTexture, useRemapUVsByY } from '../hooks'
 
+
+{/* 
 const PIXELS_PER_UNIT = 1000
+
 
 function VideoBackdrop({ bounds }: { bounds: Bounds }) {
   const [videoTexture, setVideoTexture] = useState<THREE.VideoTexture | null>(null)
@@ -45,16 +48,18 @@ function VideoBackdrop({ bounds }: { bounds: Bounds }) {
   if (!videoTexture || !size) return null
 
   return (
-    <mesh position={[0, 0.1, -bounds.z - 0.5]}>
+    <mesh position={[0, 0, -bounds.z - 0.5]}>
       <planeGeometry args={size} />
       <meshBasicMaterial map={videoTexture} toneMapped={false} />
     </mesh>
   )
 }
+*/}
 
 export const TANK_MODELS = {
-  square: { path: 'squaretank.glb', label: '사각 탱크', shape: 'box' as const },
-  round:  { path: 'roundtank.glb',  label: '원형 탱크', shape: 'cylinder' as const },
+  square: { path: 'squaretank.glb', label: 'Square', shape: 'box' as const },
+  round:  { path: 'roundtank.glb',  label: 'Round', shape: 'cylinder' as const },
+  imac:   { path: 'imactank.glb',   label: 'iMac',  shape: 'box' as const },
 }
 
 export type TankModelKey = keyof typeof TANK_MODELS
@@ -66,13 +71,14 @@ interface FrostedGlassBoxProps {
   tailPreset: TailPresetKey
   tankModel: TankModelKey
   onFloorY?: (y: number) => void
+  normalScale?: number
 }
 
-export default function FrostedGlassBox({ tailPreset, tankModel, onFloorY }: FrostedGlassBoxProps) {
+export default function FrostedGlassBox({ tailPreset, tankModel, onFloorY, normalScale }: FrostedGlassBoxProps) {
   const groupRef = useRef<THREE.Group>(null)
   const waterRef = useRef<THREE.Mesh>(null)
   const glassRef = useRef<THREE.Mesh>(null)
-  const gradientMap = useGradientTexture('#4a90e8', '#fafafa', 512)
+  const gradientMap = useGradientTexture('#0075FE', '#fafafa', 512)
 
   const mouseTarget = useRef<THREE.Vector3 | null>(null)
   const isHovered = useRef(false)
@@ -114,18 +120,6 @@ export default function FrostedGlassBox({ tailPreset, tankModel, onFloorY }: Fro
     toRemove.forEach((obj) => obj.parent?.remove(obj))
     cloned.scale.set(MODEL_SCALE, MODEL_SCALE, MODEL_SCALE)
 
-    const refGeo = (water as THREE.BufferGeometry | null) ?? (glass as THREE.BufferGeometry | null)
-    let centerOffset = new THREE.Vector3()
-    if (refGeo) {
-      refGeo.computeBoundingBox()
-      const center = new THREE.Vector3()
-      refGeo.boundingBox!.getCenter(center)
-      centerOffset = center.clone()
-      ;(water as THREE.BufferGeometry | null)?.translate(-center.x, -center.y, -center.z)
-      if (glass && glass !== refGeo) (glass as THREE.BufferGeometry).translate(-center.x, -center.y, -center.z)
-      cloned.position.set(-center.x, -center.y, -center.z)
-    }
-
     const fullBox = new THREE.Box3()
     cloned.updateMatrixWorld(true)
     cloned.traverse((child) => {
@@ -138,17 +132,23 @@ export default function FrostedGlassBox({ tailPreset, tankModel, onFloorY }: Fro
       }
     })
     if (water) {
-      const waterBox = (water as THREE.BufferGeometry).boundingBox ?? new THREE.Box3()
-      fullBox.union(waterBox)
+      (water as THREE.BufferGeometry).computeBoundingBox()
+      fullBox.union((water as THREE.BufferGeometry).boundingBox!)
     }
     if (glass) {
-      const glassBox = new THREE.Box3()
-      ;(glass as THREE.BufferGeometry).computeBoundingBox()
-      glassBox.copy((glass as THREE.BufferGeometry).boundingBox!)
-      fullBox.union(glassBox)
+      (glass as THREE.BufferGeometry).computeBoundingBox()
+      fullBox.union((glass as THREE.BufferGeometry).boundingBox!)
     }
 
-    const computedFloorY = fullBox.isEmpty() ? -0.2 : fullBox.min.y
+    const center = new THREE.Vector3()
+    if (!fullBox.isEmpty()) {
+      fullBox.getCenter(center)
+      ;(water as THREE.BufferGeometry | null)?.translate(-center.x, -center.y, -center.z)
+      if (glass) (glass as THREE.BufferGeometry).translate(-center.x, -center.y, -center.z)
+      cloned.position.set(-center.x, -center.y, -center.z)
+    }
+
+    const computedFloorY = fullBox.isEmpty() ? -0.2 : fullBox.min.y - center.y
 
     return { waterGeo: water, glassGeo: glass, otherScene: cloned, floorY: computedFloorY }
   }, [scene])
@@ -164,9 +164,9 @@ export default function FrostedGlassBox({ tailPreset, tankModel, onFloorY }: Fro
     if (!geo) return { x: 0.6, y: 0.6, z: 0.6, shape: tankShape, radius: 0.6 }
     geo.computeBoundingBox()
     const box = geo.boundingBox!
-    const hx = (box.max.x - box.min.x) / 2 - BOUNDS_MARGIN
-    const hy = (box.max.y - box.min.y) / 2 - BOUNDS_MARGIN
-    const hz = (box.max.z - box.min.z) / 2 - BOUNDS_MARGIN
+    const hx = Math.min(Math.abs(box.min.x), Math.abs(box.max.x)) - BOUNDS_MARGIN
+    const hy = Math.min(Math.abs(box.min.y), Math.abs(box.max.y)) - BOUNDS_MARGIN
+    const hz = Math.min(Math.abs(box.min.z), Math.abs(box.max.z)) - BOUNDS_MARGIN
     const radius = tankShape === 'cylinder' ? Math.min(hx, hz) : Math.min(hx, hz)
     return { x: hx, y: hy, z: hz, shape: tankShape, radius }
   }, [waterGeo, glassGeo, tankShape])
@@ -186,6 +186,10 @@ export default function FrostedGlassBox({ tailPreset, tankModel, onFloorY }: Fro
     const localPoint = groupRef.current
       ? groupRef.current.worldToLocal(e.point.clone())
       : e.point.clone()
+    const shrink = 0.7
+    localPoint.x *= shrink
+    localPoint.y *= shrink
+    localPoint.z *= shrink
     if (!mouseTarget.current) {
       mouseTarget.current = localPoint
     } else {
@@ -205,6 +209,7 @@ export default function FrostedGlassBox({ tailPreset, tankModel, onFloorY }: Fro
       : e.point.clone()
 
     const { x: bx, y: by, z: bz } = orbBounds
+    
 
     const count = 3 + Math.floor(Math.random() * 3)
     for (let i = 0; i < count; i++) {
@@ -231,11 +236,11 @@ export default function FrostedGlassBox({ tailPreset, tankModel, onFloorY }: Fro
 
   return (
     <group ref={groupRef} position={[0, 0, 0]}>
-      <BettaFish mouseTarget={mouseTarget} isHovered={isHovered} bounds={orbBounds} tailPreset={tailPreset} foodPellets={foodPelletsRef} />
+      <BettaFish mouseTarget={mouseTarget} isHovered={isHovered} bounds={orbBounds} tailPreset={tailPreset} foodPellets={foodPelletsRef} normalScale={normalScale} />
       <FishFood pelletsRef={foodPelletsRef} bounds={orbBounds} />
       <Bubbles />
 
-      <VideoBackdrop bounds={orbBounds} />
+      {/* <VideoBackdrop bounds={orbBounds} /> */}
 
       <primitive object={otherScene} />
 
@@ -288,7 +293,7 @@ export default function FrostedGlassBox({ tailPreset, tankModel, onFloorY }: Fro
             envMapIntensity={1}
             clearcoat={1}
             clearcoatRoughness={0.03}
-            ior={1.52}
+            ior={1.2}
             specularIntensity={1.5}
             reflectivity={0.8}
             depthWrite={false}

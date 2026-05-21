@@ -1,10 +1,11 @@
 import { useRef, useMemo, useEffect } from 'react'
 import { useFrame } from '@react-three/fiber'
 import * as THREE from 'three'
+import { useGLTF } from '@react-three/drei'
 import type { FoodPellet, Bounds } from '../types'
 import { TAIL_PRESETS, type TailPresetKey } from './tailPresets'
 import { generateTail } from './tailGeometry'
-import { memMat, rayMat } from './materials'
+import { memMat, rayMat, finGradientColor } from './materials'
 import {
   FISH_SCALE, BODY_SCALE, TAIL_SCALE,
   PECTORAL_SCALE, DORSAL_SCALE, ANAL_SCALE,
@@ -17,10 +18,13 @@ import {
   PECTORAL_FIN, PECTORAL_X, PECTORAL_Y, PECTORAL_Z,
   DORSAL_FIN, DORSAL_X, DORSAL_Y,
   ANAL_FIN, ANAL_X, ANAL_Y,
+  TAIL_X, TAIL_Y,
   _acc, _desired, _steer, _wall, _tmp,
   _lookMat, _up, _origin, _targetQuat,
-  _baseMemColor, _lerpColor,
+  _lerpColor,
 } from './constants'
+
+const FISH_BODY_PATH = `${import.meta.env.BASE_URL}fishbody.glb`
 
 interface BettaFishProps {
   mouseTarget: React.RefObject<THREE.Vector3 | null>
@@ -28,9 +32,10 @@ interface BettaFishProps {
   bounds: Bounds
   tailPreset: TailPresetKey
   foodPellets: { current: FoodPellet[] }
+  normalScale?: number
 }
 
-export default function BettaFish({ mouseTarget, isHovered, bounds, tailPreset, foodPellets }: BettaFishProps) {
+export default function BettaFish({ mouseTarget, isHovered, bounds, tailPreset, foodPellets, normalScale = 1 }: BettaFishProps) {
   const fishOriginRef = useRef<THREE.Group>(null)
   const tailGroupRef = useRef<THREE.Group>(null)
   const eyeGroupRef = useRef<THREE.Group>(null)
@@ -49,9 +54,30 @@ export default function BettaFish({ mouseTarget, isHovered, bounds, tailPreset, 
   const smoothAngVel = useRef(0)
   const wavePhase = useRef(0)
 
+  const { scene: fishBodyScene } = useGLTF(FISH_BODY_PATH)
+
   const bodyState = useMemo(() => {
-    const geo = new THREE.SphereGeometry(1, 20, 14)
+    let srcGeo: THREE.BufferGeometry | null = null
+    let normalMap: THREE.Texture | null = null
+    let normalScale = 2
+    fishBodyScene.traverse((child) => {
+      const mesh = child as THREE.Mesh
+      if (mesh.isMesh && !srcGeo) {
+        srcGeo = mesh.geometry.clone()
+        const mat = mesh.material as THREE.MeshStandardMaterial
+        if (mat?.normalMap) {
+          normalMap = mat.normalMap
+          if (mat.normalScale) normalScale = mat.normalScale.x
+        }
+      }
+    })
+    if (!srcGeo) throw new Error('No mesh found in fishbody.glb')
+    const geo = srcGeo as THREE.BufferGeometry
+
     const posAttr = geo.attributes.position as THREE.BufferAttribute
+    geo.computeBoundingBox()
+    const box = geo.boundingBox!
+
     const original = new Float32Array(posAttr.count * 3)
     const colors = new Float32Array(posAttr.count * 3)
 
@@ -62,29 +88,38 @@ export default function BettaFish({ mouseTarget, isHovered, bounds, tailPreset, 
     const tmpColor = new THREE.Color()
 
     const minX = BODY_CENTER_X - BODY_RADIUS_X
-    const maxX = BODY_CENTER_X + BODY_RADIUS_X
-    const rangeX = maxX - minX
+    const rangeX = BODY_RADIUS_X * 2
     const minY = BODY_CENTER_Y - BODY_RADIUS_Y
-    const maxY = BODY_CENTER_Y + BODY_RADIUS_Y
-    const rangeY = maxY - minY
+    const rangeY = BODY_RADIUS_Y * 2
+
+    const srcRangeZ = box.max.z - box.min.z
+    const srcRangeY = box.max.y - box.min.y
+    const srcRangeX = box.max.x - box.min.x
 
     for (let i = 0; i < posAttr.count; i++) {
-      const x = posAttr.getX(i) * BODY_RADIUS_X + BODY_CENTER_X
-      const y = posAttr.getY(i) * BODY_RADIUS_Y + BODY_CENTER_Y
-      const z = posAttr.getZ(i) * BODY_RADIUS_Z
+      const srcX = posAttr.getX(i)
+      const srcY = posAttr.getY(i)
+      const srcZ = posAttr.getZ(i)
+
+      const tz = (srcZ - box.min.z) / srcRangeZ
+      const ty = (srcY - box.min.y) / srcRangeY
+      const tx = (srcX - box.min.x) / srcRangeX
+
+      const x = minX + tz * rangeX
+      const y = minY + ty * rangeY
+      const z = -BODY_RADIUS_Z + tx * BODY_RADIUS_Z * 2
+
       posAttr.setXYZ(i, x, y, z)
       original[i * 3] = x
       original[i * 3 + 1] = y
       original[i * 3 + 2] = z
 
-      const tx = (x - minX) / rangeX
-      if (tx < 0.5) {
-        tmpColor.copy(headColor).lerp(midColor, tx * 2)
+      if (tz < 0.5) {
+        tmpColor.copy(headColor).lerp(midColor, tz * 2)
       } else {
-        tmpColor.copy(midColor).lerp(tailColor, (tx - 0.5) * 2)
+        tmpColor.copy(midColor).lerp(tailColor, (tz - 0.5) * 2)
       }
 
-      const ty = (y - minY) / rangeY
       const bellyFactor = Math.pow(1 - ty, 2) * 0.25
       tmpColor.lerp(bellyTint, bellyFactor)
 
@@ -94,21 +129,44 @@ export default function BettaFish({ mouseTarget, isHovered, bounds, tailPreset, 
     }
 
     posAttr.needsUpdate = true
+
+    const idx = geo.index
+    if (idx) {
+      const arr = idx.array as Uint16Array | Uint32Array
+      for (let i = 0; i < arr.length; i += 3) {
+        const tmp = arr[i + 1]
+        arr[i + 1] = arr[i + 2]
+        arr[i + 2] = tmp
+      }
+      idx.needsUpdate = true
+    }
+
     const originalColors = new Float32Array(colors)
     geo.setAttribute('color', new THREE.BufferAttribute(colors, 3))
     geo.computeVertexNormals()
-    return { geo, original, originalColors }
-  }, [])
+    if (geo.attributes.uv && geo.index) {
+      geo.computeTangents()
+    }
+    return { geo, original, originalColors, normalMap, normalScale }
+  }, [fishBodyScene])
 
   const pectoralState = useMemo(() => {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const result = generateTail(PECTORAL_FIN as any)
+    const fLen = PECTORAL_FIN.length
 
     function makeSide() {
       const memOrig = new Float32Array(result.membrane)
       const memLive = new Float32Array(result.membrane)
+      const memColors = new Float32Array(memLive.length)
+      for (let i = 0; i < memLive.length; i += 3) {
+        const r = Math.sqrt(memOrig[i] ** 2 + memOrig[i + 1] ** 2)
+        const c = finGradientColor(Math.min(r / fLen, 1))
+        memColors[i] = c.r; memColors[i + 1] = c.g; memColors[i + 2] = c.b
+      }
       const memGeo = new THREE.BufferGeometry()
       memGeo.setAttribute('position', new THREE.BufferAttribute(memLive, 3))
+      memGeo.setAttribute('color', new THREE.BufferAttribute(memColors, 3))
       const memMesh = new THREE.Mesh(memGeo, memMat)
 
       const rayBufs: { geo: THREE.BufferGeometry; positions: Float32Array; original: Float32Array }[] = []
@@ -116,6 +174,7 @@ export default function BettaFish({ mouseTarget, isHovered, bounds, tailPreset, 
       for (const ray of result.rays) {
         const positions = new Float32Array(ray.length * 3)
         const original = new Float32Array(ray.length * 3)
+        const colors = new Float32Array(ray.length * 3)
         for (let i = 0; i < ray.length; i++) {
           positions[i * 3] = ray[i].x
           positions[i * 3 + 1] = ray[i].y
@@ -123,31 +182,44 @@ export default function BettaFish({ mouseTarget, isHovered, bounds, tailPreset, 
           original[i * 3] = ray[i].x
           original[i * 3 + 1] = ray[i].y
           original[i * 3 + 2] = 0
+          const r = Math.sqrt(ray[i].x ** 2 + ray[i].y ** 2)
+          const c = finGradientColor(Math.min(r / fLen, 1))
+          colors[i * 3] = c.r; colors[i * 3 + 1] = c.g; colors[i * 3 + 2] = c.b
         }
         const geo = new THREE.BufferGeometry()
         geo.setAttribute('position', new THREE.BufferAttribute(positions, 3))
+        geo.setAttribute('color', new THREE.BufferAttribute(colors, 3))
         rayBufs.push({ geo, positions, original })
         rayLines.push(new THREE.Line(geo, rayMat))
       }
       return { memOrig, memLive, memGeo, memMesh, rayBufs, rayLines }
     }
 
-    return { left: makeSide(), right: makeSide(), finLen: PECTORAL_FIN.length }
+    return { left: makeSide(), right: makeSide(), finLen: fLen }
   }, [])
 
   const dorsalState = useMemo(() => {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const result = generateTail(DORSAL_FIN as any)
+    const fLen = DORSAL_FIN.length
     const memOrig = new Float32Array(result.membrane)
     const memLive = new Float32Array(result.membrane)
+    const memColors = new Float32Array(memLive.length)
+    for (let i = 0; i < memLive.length; i += 3) {
+      const r = Math.sqrt(memOrig[i] ** 2 + memOrig[i + 1] ** 2)
+      const c = finGradientColor(Math.min(r / fLen, 1))
+      memColors[i] = c.r; memColors[i + 1] = c.g; memColors[i + 2] = c.b
+    }
     const memGeo = new THREE.BufferGeometry()
     memGeo.setAttribute('position', new THREE.BufferAttribute(memLive, 3))
+    memGeo.setAttribute('color', new THREE.BufferAttribute(memColors, 3))
     const memMesh = new THREE.Mesh(memGeo, memMat)
     const rayBufs: { geo: THREE.BufferGeometry; positions: Float32Array; original: Float32Array }[] = []
     const rayLines: THREE.Line[] = []
     for (const ray of result.rays) {
       const positions = new Float32Array(ray.length * 3)
       const original = new Float32Array(ray.length * 3)
+      const colors = new Float32Array(ray.length * 3)
       for (let i = 0; i < ray.length; i++) {
         positions[i * 3] = ray[i].x
         positions[i * 3 + 1] = ray[i].y
@@ -155,28 +227,41 @@ export default function BettaFish({ mouseTarget, isHovered, bounds, tailPreset, 
         original[i * 3] = ray[i].x
         original[i * 3 + 1] = ray[i].y
         original[i * 3 + 2] = 0
+        const r = Math.sqrt(ray[i].x ** 2 + ray[i].y ** 2)
+        const c = finGradientColor(Math.min(r / fLen, 1))
+        colors[i * 3] = c.r; colors[i * 3 + 1] = c.g; colors[i * 3 + 2] = c.b
       }
       const geo = new THREE.BufferGeometry()
       geo.setAttribute('position', new THREE.BufferAttribute(positions, 3))
+      geo.setAttribute('color', new THREE.BufferAttribute(colors, 3))
       rayBufs.push({ geo, positions, original })
       rayLines.push(new THREE.Line(geo, rayMat))
     }
-    return { memOrig, memLive, memGeo, memMesh, rayBufs, rayLines, finLen: DORSAL_FIN.length }
+    return { memOrig, memLive, memGeo, memMesh, rayBufs, rayLines, finLen: fLen }
   }, [])
 
   const analState = useMemo(() => {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const result = generateTail(ANAL_FIN as any)
+    const fLen = ANAL_FIN.length
     const memOrig = new Float32Array(result.membrane)
     const memLive = new Float32Array(result.membrane)
+    const memColors = new Float32Array(memLive.length)
+    for (let i = 0; i < memLive.length; i += 3) {
+      const r = Math.sqrt(memOrig[i] ** 2 + memOrig[i + 1] ** 2)
+      const c = finGradientColor(Math.min(r / fLen, 1))
+      memColors[i] = c.r; memColors[i + 1] = c.g; memColors[i + 2] = c.b
+    }
     const memGeo = new THREE.BufferGeometry()
     memGeo.setAttribute('position', new THREE.BufferAttribute(memLive, 3))
+    memGeo.setAttribute('color', new THREE.BufferAttribute(memColors, 3))
     const memMesh = new THREE.Mesh(memGeo, memMat)
     const rayBufs: { geo: THREE.BufferGeometry; positions: Float32Array; original: Float32Array }[] = []
     const rayLines: THREE.Line[] = []
     for (const ray of result.rays) {
       const positions = new Float32Array(ray.length * 3)
       const original = new Float32Array(ray.length * 3)
+      const colors = new Float32Array(ray.length * 3)
       for (let i = 0; i < ray.length; i++) {
         positions[i * 3] = ray[i].x
         positions[i * 3 + 1] = ray[i].y
@@ -184,24 +269,36 @@ export default function BettaFish({ mouseTarget, isHovered, bounds, tailPreset, 
         original[i * 3] = ray[i].x
         original[i * 3 + 1] = ray[i].y
         original[i * 3 + 2] = 0
+        const r = Math.sqrt(ray[i].x ** 2 + ray[i].y ** 2)
+        const c = finGradientColor(Math.min(r / fLen, 1))
+        colors[i * 3] = c.r; colors[i * 3 + 1] = c.g; colors[i * 3 + 2] = c.b
       }
       const geo = new THREE.BufferGeometry()
       geo.setAttribute('position', new THREE.BufferAttribute(positions, 3))
+      geo.setAttribute('color', new THREE.BufferAttribute(colors, 3))
       rayBufs.push({ geo, positions, original })
       rayLines.push(new THREE.Line(geo, rayMat))
     }
-    return { memOrig, memLive, memGeo, memMesh, rayBufs, rayLines, finLen: ANAL_FIN.length }
+    return { memOrig, memLive, memGeo, memMesh, rayBufs, rayLines, finLen: fLen }
   }, [])
 
   const preset = TAIL_PRESETS[tailPreset]
 
   const tailState = useMemo(() => {
     const result = generateTail(preset)
+    const fLen = preset.length
 
     const memOriginal = new Float32Array(result.membrane)
     const memLive = new Float32Array(result.membrane)
+    const memColors = new Float32Array(memLive.length)
+    for (let i = 0; i < memLive.length; i += 3) {
+      const r = Math.sqrt(memOriginal[i] ** 2 + memOriginal[i + 1] ** 2)
+      const c = finGradientColor(Math.min(r / fLen, 1))
+      memColors[i] = c.r; memColors[i + 1] = c.g; memColors[i + 2] = c.b
+    }
     const memGeo = new THREE.BufferGeometry()
     memGeo.setAttribute('position', new THREE.BufferAttribute(memLive, 3))
+    memGeo.setAttribute('color', new THREE.BufferAttribute(memColors, 3))
     const memMesh = new THREE.Mesh(memGeo, memMat)
 
     const rayBufs: { geo: THREE.BufferGeometry; positions: Float32Array; original: Float32Array }[] = []
@@ -210,6 +307,7 @@ export default function BettaFish({ mouseTarget, isHovered, bounds, tailPreset, 
     for (const ray of result.rays) {
       const positions = new Float32Array(ray.length * 3)
       const original = new Float32Array(ray.length * 3)
+      const colors = new Float32Array(ray.length * 3)
       for (let i = 0; i < ray.length; i++) {
         positions[i * 3] = ray[i].x
         positions[i * 3 + 1] = ray[i].y
@@ -217,14 +315,18 @@ export default function BettaFish({ mouseTarget, isHovered, bounds, tailPreset, 
         original[i * 3] = ray[i].x
         original[i * 3 + 1] = ray[i].y
         original[i * 3 + 2] = 0
+        const r = Math.sqrt(ray[i].x ** 2 + ray[i].y ** 2)
+        const c = finGradientColor(Math.min(r / fLen, 1))
+        colors[i * 3] = c.r; colors[i * 3 + 1] = c.g; colors[i * 3 + 2] = c.b
       }
       const geo = new THREE.BufferGeometry()
       geo.setAttribute('position', new THREE.BufferAttribute(positions, 3))
+      geo.setAttribute('color', new THREE.BufferAttribute(colors, 3))
       rayBufs.push({ geo, positions, original })
       rayLines.push(new THREE.Line(geo, rayMat))
     }
 
-    return { memOriginal, memLive, memGeo, memMesh, rayBufs, rayLines, tailLen: preset.length }
+    return { memOriginal, memLive, memGeo, memMesh, rayBufs, rayLines, tailLen: fLen }
   }, [preset])
 
   useEffect(() => {
@@ -620,15 +722,7 @@ export default function BettaFish({ mouseTarget, isHovered, bounds, tailPreset, 
     }
     colorAttr.needsUpdate = true
 
-    if (glow > 0.001) {
-      _lerpColor.copy(_baseMemColor)
-      _lerpColor.getHSL(hsl)
-      hsl.s = Math.min(1, hsl.s + glow * 0.5)
-      _lerpColor.setHSL(hsl.h, hsl.s, hsl.l)
-      memMat.color.copy(_lerpColor)
-    } else {
-      memMat.color.copy(_baseMemColor)
-    }
+    memMat.emissiveIntensity = 0.5 + (glow > 0.001 ? glow * 1.5 : 0)
   })
 
   return (
@@ -641,6 +735,8 @@ export default function BettaFish({ mouseTarget, isHovered, bounds, tailPreset, 
               vertexColors
               emissive="#802018"
               emissiveIntensity={1}
+              normalMap={bodyState.normalMap}
+              normalScale={bodyState.normalMap ? new THREE.Vector2(normalScale, normalScale) : undefined}
             />
           </mesh>
           <group ref={eyeGroupRef}>
@@ -658,8 +754,10 @@ export default function BettaFish({ mouseTarget, isHovered, bounds, tailPreset, 
           <group ref={dorsalRef} position={[DORSAL_X, DORSAL_Y, 0]} rotation={[0, 0, Math.PI * 0.25]} scale={DORSAL_SCALE} />
           <group ref={analRef} position={[ANAL_X, ANAL_Y, 0]} rotation={[0, Math.PI, -Math.PI * 0.5]} scale={ANAL_SCALE} />
         </group>
-        <group ref={tailGroupRef} scale={TAIL_SCALE} />
+        <group ref={tailGroupRef} position={[TAIL_X, TAIL_Y, 0]} scale={TAIL_SCALE} />
       </group>
     </group>
   )
 }
+
+useGLTF.preload(FISH_BODY_PATH)

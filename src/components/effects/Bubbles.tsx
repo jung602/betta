@@ -13,8 +13,8 @@ const BUOYANCY_MIN = 0.0625
 const BUOYANCY_MAX = 0.1375
 const WOBBLE_AMP = 0.03
 const WOBBLE_SPEED = 2.8
-const SIZE_MIN = 0.0045
-const SIZE_MAX = 0.01375
+const SIZE_MIN = 0.009
+const SIZE_MAX = 0.025
 
 interface BubbleData {
   mesh: THREE.Mesh
