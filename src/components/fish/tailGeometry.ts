@@ -1,4 +1,13 @@
-import type { TailPreset } from './tailPresets'
+export interface FinShape {
+  rayCount: number
+  spread: number
+  length: number
+  droop: number
+  branchDepth: number
+  recession: number
+  doubled: boolean
+  lenShape: string
+}
 
 function lengthFn(t: number, shape: string) {
   if (shape === 'round') return 0.85 + 0.15 * Math.sin(t * Math.PI)
@@ -52,7 +61,7 @@ function branchRay(
   return out
 }
 
-export function generateTail(p: TailPreset) {
+export function generateTail(p: FinShape) {
   const halfSpread = (p.spread * Math.PI / 180) / 2
   const fans = p.doubled
     ? [

@@ -5,7 +5,6 @@ import * as THREE from 'three'
 import { FrostedGlassBox, type TankModelKey } from './tank'
 import { TailPresetSelector, TankSelector } from './ui'
 import type { TailPresetKey } from './fish'
-import { Face } from 'three/examples/jsm/Addons.js'
 
 type AccordionTab = 'tail' | 'tank' | null
 
@@ -87,8 +86,8 @@ function FloorPlane({ y }: { y: number }) {
 }
 
 export default function Scene() {
-  const [tailPreset, setTailPreset] = useState<TailPresetKey>('halfmoon')
-  const [tankModel, setTankModel] = useState<TankModelKey>('square')
+  const [tailPreset, setTailPreset] = useState<TailPresetKey>('rosetail')
+  const [tankModel, setTankModel] = useState<TankModelKey>('round')
   const [floorY, setFloorY] = useState(-0.2)
   const [normalScale] = useState(20)
   const [openTab, setOpenTab] = useState<AccordionTab>(null)
@@ -162,7 +161,7 @@ export default function Scene() {
           minPolarAngle={Math.PI / 4}
           maxPolarAngle={Math.PI / 1}
           autoRotate={true}
-          autoRotateSpeed={0.1}
+          autoRotateSpeed={0.5}
           dampingFactor={0.05}
           enableDamping
         />

@@ -5,7 +5,8 @@ import { useGLTF } from '@react-three/drei'
 import type { FoodPellet, Bounds } from '../types'
 import { TAIL_PRESETS, type TailPresetKey } from './tailPresets'
 import { generateTail } from './tailGeometry'
-import { memMat, rayMat, finGradientColor } from './materials'
+import { memMat } from './materials'
+import { buildFinState, animateFinWave, type FinState } from './finBuilder'
 import {
   FISH_SCALE, BODY_SCALE, TAIL_SCALE,
   PECTORAL_SCALE, DORSAL_SCALE, ANAL_SCALE,
@@ -33,6 +34,22 @@ interface BettaFishProps {
   tailPreset: TailPresetKey
   foodPellets: { current: FoodPellet[] }
   normalScale?: number
+}
+
+/** Attaches a fin's membrane mesh and ray lines to a group, disposing on unmount. */
+function useAttachFin(ref: React.RefObject<THREE.Group | null>, fin: FinState) {
+  useEffect(() => {
+    const group = ref.current
+    if (!group) return
+    group.add(fin.memMesh)
+    fin.rayLines.forEach(l => group.add(l))
+    return () => {
+      group.remove(fin.memMesh)
+      fin.rayLines.forEach(l => group.remove(l))
+      fin.memGeo.dispose()
+      fin.rayBufs.forEach(b => b.geo.dispose())
+    }
+  }, [ref, fin])
 }
 
 export default function BettaFish({ mouseTarget, isHovered, bounds, tailPreset, foodPellets, normalScale = 1 }: BettaFishProps) {
@@ -151,242 +168,26 @@ export default function BettaFish({ mouseTarget, isHovered, bounds, tailPreset, 
   }, [fishBodyScene])
 
   const pectoralState = useMemo(() => {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const result = generateTail(PECTORAL_FIN as any)
-    const fLen = PECTORAL_FIN.length
-
-    function makeSide() {
-      const memOrig = new Float32Array(result.membrane)
-      const memLive = new Float32Array(result.membrane)
-      const memColors = new Float32Array(memLive.length)
-      for (let i = 0; i < memLive.length; i += 3) {
-        const r = Math.sqrt(memOrig[i] ** 2 + memOrig[i + 1] ** 2)
-        const c = finGradientColor(Math.min(r / fLen, 1))
-        memColors[i] = c.r; memColors[i + 1] = c.g; memColors[i + 2] = c.b
-      }
-      const memGeo = new THREE.BufferGeometry()
-      memGeo.setAttribute('position', new THREE.BufferAttribute(memLive, 3))
-      memGeo.setAttribute('color', new THREE.BufferAttribute(memColors, 3))
-      const memMesh = new THREE.Mesh(memGeo, memMat)
-
-      const rayBufs: { geo: THREE.BufferGeometry; positions: Float32Array; original: Float32Array }[] = []
-      const rayLines: THREE.Line[] = []
-      for (const ray of result.rays) {
-        const positions = new Float32Array(ray.length * 3)
-        const original = new Float32Array(ray.length * 3)
-        const colors = new Float32Array(ray.length * 3)
-        for (let i = 0; i < ray.length; i++) {
-          positions[i * 3] = ray[i].x
-          positions[i * 3 + 1] = ray[i].y
-          positions[i * 3 + 2] = 0
-          original[i * 3] = ray[i].x
-          original[i * 3 + 1] = ray[i].y
-          original[i * 3 + 2] = 0
-          const r = Math.sqrt(ray[i].x ** 2 + ray[i].y ** 2)
-          const c = finGradientColor(Math.min(r / fLen, 1))
-          colors[i * 3] = c.r; colors[i * 3 + 1] = c.g; colors[i * 3 + 2] = c.b
-        }
-        const geo = new THREE.BufferGeometry()
-        geo.setAttribute('position', new THREE.BufferAttribute(positions, 3))
-        geo.setAttribute('color', new THREE.BufferAttribute(colors, 3))
-        rayBufs.push({ geo, positions, original })
-        rayLines.push(new THREE.Line(geo, rayMat))
-      }
-      return { memOrig, memLive, memGeo, memMesh, rayBufs, rayLines }
+    const result = generateTail(PECTORAL_FIN)
+    return {
+      left: buildFinState(result, PECTORAL_FIN.length),
+      right: buildFinState(result, PECTORAL_FIN.length),
     }
-
-    return { left: makeSide(), right: makeSide(), finLen: fLen }
   }, [])
 
-  const dorsalState = useMemo(() => {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const result = generateTail(DORSAL_FIN as any)
-    const fLen = DORSAL_FIN.length
-    const memOrig = new Float32Array(result.membrane)
-    const memLive = new Float32Array(result.membrane)
-    const memColors = new Float32Array(memLive.length)
-    for (let i = 0; i < memLive.length; i += 3) {
-      const r = Math.sqrt(memOrig[i] ** 2 + memOrig[i + 1] ** 2)
-      const c = finGradientColor(Math.min(r / fLen, 1))
-      memColors[i] = c.r; memColors[i + 1] = c.g; memColors[i + 2] = c.b
-    }
-    const memGeo = new THREE.BufferGeometry()
-    memGeo.setAttribute('position', new THREE.BufferAttribute(memLive, 3))
-    memGeo.setAttribute('color', new THREE.BufferAttribute(memColors, 3))
-    const memMesh = new THREE.Mesh(memGeo, memMat)
-    const rayBufs: { geo: THREE.BufferGeometry; positions: Float32Array; original: Float32Array }[] = []
-    const rayLines: THREE.Line[] = []
-    for (const ray of result.rays) {
-      const positions = new Float32Array(ray.length * 3)
-      const original = new Float32Array(ray.length * 3)
-      const colors = new Float32Array(ray.length * 3)
-      for (let i = 0; i < ray.length; i++) {
-        positions[i * 3] = ray[i].x
-        positions[i * 3 + 1] = ray[i].y
-        positions[i * 3 + 2] = 0
-        original[i * 3] = ray[i].x
-        original[i * 3 + 1] = ray[i].y
-        original[i * 3 + 2] = 0
-        const r = Math.sqrt(ray[i].x ** 2 + ray[i].y ** 2)
-        const c = finGradientColor(Math.min(r / fLen, 1))
-        colors[i * 3] = c.r; colors[i * 3 + 1] = c.g; colors[i * 3 + 2] = c.b
-      }
-      const geo = new THREE.BufferGeometry()
-      geo.setAttribute('position', new THREE.BufferAttribute(positions, 3))
-      geo.setAttribute('color', new THREE.BufferAttribute(colors, 3))
-      rayBufs.push({ geo, positions, original })
-      rayLines.push(new THREE.Line(geo, rayMat))
-    }
-    return { memOrig, memLive, memGeo, memMesh, rayBufs, rayLines, finLen: fLen }
-  }, [])
+  const dorsalState = useMemo(() => buildFinState(generateTail(DORSAL_FIN), DORSAL_FIN.length), [])
 
-  const analState = useMemo(() => {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const result = generateTail(ANAL_FIN as any)
-    const fLen = ANAL_FIN.length
-    const memOrig = new Float32Array(result.membrane)
-    const memLive = new Float32Array(result.membrane)
-    const memColors = new Float32Array(memLive.length)
-    for (let i = 0; i < memLive.length; i += 3) {
-      const r = Math.sqrt(memOrig[i] ** 2 + memOrig[i + 1] ** 2)
-      const c = finGradientColor(Math.min(r / fLen, 1))
-      memColors[i] = c.r; memColors[i + 1] = c.g; memColors[i + 2] = c.b
-    }
-    const memGeo = new THREE.BufferGeometry()
-    memGeo.setAttribute('position', new THREE.BufferAttribute(memLive, 3))
-    memGeo.setAttribute('color', new THREE.BufferAttribute(memColors, 3))
-    const memMesh = new THREE.Mesh(memGeo, memMat)
-    const rayBufs: { geo: THREE.BufferGeometry; positions: Float32Array; original: Float32Array }[] = []
-    const rayLines: THREE.Line[] = []
-    for (const ray of result.rays) {
-      const positions = new Float32Array(ray.length * 3)
-      const original = new Float32Array(ray.length * 3)
-      const colors = new Float32Array(ray.length * 3)
-      for (let i = 0; i < ray.length; i++) {
-        positions[i * 3] = ray[i].x
-        positions[i * 3 + 1] = ray[i].y
-        positions[i * 3 + 2] = 0
-        original[i * 3] = ray[i].x
-        original[i * 3 + 1] = ray[i].y
-        original[i * 3 + 2] = 0
-        const r = Math.sqrt(ray[i].x ** 2 + ray[i].y ** 2)
-        const c = finGradientColor(Math.min(r / fLen, 1))
-        colors[i * 3] = c.r; colors[i * 3 + 1] = c.g; colors[i * 3 + 2] = c.b
-      }
-      const geo = new THREE.BufferGeometry()
-      geo.setAttribute('position', new THREE.BufferAttribute(positions, 3))
-      geo.setAttribute('color', new THREE.BufferAttribute(colors, 3))
-      rayBufs.push({ geo, positions, original })
-      rayLines.push(new THREE.Line(geo, rayMat))
-    }
-    return { memOrig, memLive, memGeo, memMesh, rayBufs, rayLines, finLen: fLen }
-  }, [])
+  const analState = useMemo(() => buildFinState(generateTail(ANAL_FIN), ANAL_FIN.length), [])
 
   const preset = TAIL_PRESETS[tailPreset]
 
-  const tailState = useMemo(() => {
-    const result = generateTail(preset)
-    const fLen = preset.length
+  const tailState = useMemo(() => buildFinState(generateTail(preset), preset.length), [preset])
 
-    const memOriginal = new Float32Array(result.membrane)
-    const memLive = new Float32Array(result.membrane)
-    const memColors = new Float32Array(memLive.length)
-    for (let i = 0; i < memLive.length; i += 3) {
-      const r = Math.sqrt(memOriginal[i] ** 2 + memOriginal[i + 1] ** 2)
-      const c = finGradientColor(Math.min(r / fLen, 1))
-      memColors[i] = c.r; memColors[i + 1] = c.g; memColors[i + 2] = c.b
-    }
-    const memGeo = new THREE.BufferGeometry()
-    memGeo.setAttribute('position', new THREE.BufferAttribute(memLive, 3))
-    memGeo.setAttribute('color', new THREE.BufferAttribute(memColors, 3))
-    const memMesh = new THREE.Mesh(memGeo, memMat)
-
-    const rayBufs: { geo: THREE.BufferGeometry; positions: Float32Array; original: Float32Array }[] = []
-    const rayLines: THREE.Line[] = []
-
-    for (const ray of result.rays) {
-      const positions = new Float32Array(ray.length * 3)
-      const original = new Float32Array(ray.length * 3)
-      const colors = new Float32Array(ray.length * 3)
-      for (let i = 0; i < ray.length; i++) {
-        positions[i * 3] = ray[i].x
-        positions[i * 3 + 1] = ray[i].y
-        positions[i * 3 + 2] = 0
-        original[i * 3] = ray[i].x
-        original[i * 3 + 1] = ray[i].y
-        original[i * 3 + 2] = 0
-        const r = Math.sqrt(ray[i].x ** 2 + ray[i].y ** 2)
-        const c = finGradientColor(Math.min(r / fLen, 1))
-        colors[i * 3] = c.r; colors[i * 3 + 1] = c.g; colors[i * 3 + 2] = c.b
-      }
-      const geo = new THREE.BufferGeometry()
-      geo.setAttribute('position', new THREE.BufferAttribute(positions, 3))
-      geo.setAttribute('color', new THREE.BufferAttribute(colors, 3))
-      rayBufs.push({ geo, positions, original })
-      rayLines.push(new THREE.Line(geo, rayMat))
-    }
-
-    return { memOriginal, memLive, memGeo, memMesh, rayBufs, rayLines, tailLen: fLen }
-  }, [preset])
-
-  useEffect(() => {
-    const group = tailGroupRef.current
-    if (!group) return
-    group.add(tailState.memMesh)
-    tailState.rayLines.forEach(l => group.add(l))
-    return () => {
-      group.remove(tailState.memMesh)
-      tailState.rayLines.forEach(l => group.remove(l))
-      tailState.memGeo.dispose()
-      tailState.rayBufs.forEach(b => b.geo.dispose())
-    }
-  }, [tailState])
-
-  useEffect(() => {
-    const left = pectoralLeftRef.current
-    const right = pectoralRightRef.current
-    if (!left || !right) return
-    left.add(pectoralState.left.memMesh)
-    pectoralState.left.rayLines.forEach(l => left.add(l))
-    right.add(pectoralState.right.memMesh)
-    pectoralState.right.rayLines.forEach(l => right.add(l))
-    return () => {
-      left.remove(pectoralState.left.memMesh)
-      pectoralState.left.rayLines.forEach(l => left.remove(l))
-      right.remove(pectoralState.right.memMesh)
-      pectoralState.right.rayLines.forEach(l => right.remove(l))
-      for (const s of [pectoralState.left, pectoralState.right]) {
-        s.memGeo.dispose()
-        s.rayBufs.forEach(b => b.geo.dispose())
-      }
-    }
-  }, [pectoralState])
-
-  useEffect(() => {
-    const group = dorsalRef.current
-    if (!group) return
-    group.add(dorsalState.memMesh)
-    dorsalState.rayLines.forEach(l => group.add(l))
-    return () => {
-      group.remove(dorsalState.memMesh)
-      dorsalState.rayLines.forEach(l => group.remove(l))
-      dorsalState.memGeo.dispose()
-      dorsalState.rayBufs.forEach(b => b.geo.dispose())
-    }
-  }, [dorsalState])
-
-  useEffect(() => {
-    const group = analRef.current
-    if (!group) return
-    group.add(analState.memMesh)
-    analState.rayLines.forEach(l => group.add(l))
-    return () => {
-      group.remove(analState.memMesh)
-      analState.rayLines.forEach(l => group.remove(l))
-      analState.memGeo.dispose()
-      analState.rayBufs.forEach(b => b.geo.dispose())
-    }
-  }, [analState])
+  useAttachFin(tailGroupRef, tailState)
+  useAttachFin(pectoralLeftRef, pectoralState.left)
+  useAttachFin(pectoralRightRef, pectoralState.right)
+  useAttachFin(dorsalRef, dorsalState)
+  useAttachFin(analRef, analState)
 
   useEffect(() => {
     return () => { bodyState.geo.dispose() }
@@ -576,42 +377,8 @@ export default function BettaFish({ mouseTarget, isHovered, bounds, tailPreset, 
     }
 
     const pecPhase = wp * 1.5 + Math.PI * 0.7
-    const pecWaveAmp = 0.15
-    const pecFinLen = pectoralState.finLen
-
-    for (const side of [pectoralState.left, pectoralState.right]) {
-      for (let i = 0; i < side.memLive.length; i += 3) {
-        const ox = side.memOrig[i], oy = side.memOrig[i + 1]
-        const r = Math.sqrt(ox * ox + oy * oy)
-        let z = 0
-        if (r > 0.01) {
-          const tRel = Math.min(r / pecFinLen, 1.0)
-          const p15 = Math.pow(tRel, 1.5)
-          z = pecWaveAmp * (0.5 + 0.6 * speedFactor) * p15 * Math.sin(pecPhase - tRel * WAVE_K)
-        }
-        side.memLive[i] = ox
-        side.memLive[i + 1] = oy
-        side.memLive[i + 2] = z
-      }
-      side.memGeo.attributes.position.needsUpdate = true
-
-      for (const buf of side.rayBufs) {
-        for (let i = 0; i < buf.positions.length; i += 3) {
-          const ox = buf.original[i], oy = buf.original[i + 1]
-          const r = Math.sqrt(ox * ox + oy * oy)
-          let z = 0
-          if (r > 0.01) {
-            const tRel = Math.min(r / pecFinLen, 1.0)
-            const p15 = Math.pow(tRel, 1.5)
-            z = pecWaveAmp * (0.5 + 0.6 * speedFactor) * p15 * Math.sin(pecPhase - tRel * WAVE_K)
-          }
-          buf.positions[i] = ox
-          buf.positions[i + 1] = oy
-          buf.positions[i + 2] = z
-        }
-        buf.geo.attributes.position.needsUpdate = true
-      }
-    }
+    animateFinWave(pectoralState.left, 0.15, pecPhase, speedFactor, 0)
+    animateFinWave(pectoralState.right, 0.15, pecPhase, speedFactor, 0)
 
     if (dorsalRef.current) {
       const dT = (DORSAL_X - (BODY_CENTER_X - BODY_RADIUS_X)) / bodyLen
@@ -626,78 +393,11 @@ export default function BettaFish({ mouseTarget, isHovered, bounds, tailPreset, 
         - angV * 2.0 * aT15
     }
 
-    const daWaveAmp = 0.18
-    for (const finState of [dorsalState, analState]) {
-      for (let i = 0; i < finState.memLive.length; i += 3) {
-        const ox = finState.memOrig[i], oy = finState.memOrig[i + 1]
-        const r = Math.sqrt(ox * ox + oy * oy)
-        let z = 0
-        if (r > 0.01) {
-          const tRel = Math.min(r / finState.finLen, 1.0)
-          const p15 = Math.pow(tRel, 1.5)
-          z = daWaveAmp * (0.5 + 0.6 * speedFactor) * p15 * Math.sin(wp - tRel * WAVE_K)
-            - angV * 2.0 * p15
-        }
-        finState.memLive[i] = ox
-        finState.memLive[i + 1] = oy
-        finState.memLive[i + 2] = z
-      }
-      finState.memGeo.attributes.position.needsUpdate = true
+    const daBend = angV * 2.0
+    animateFinWave(dorsalState, 0.18, wp, speedFactor, daBend)
+    animateFinWave(analState, 0.18, wp, speedFactor, daBend)
 
-      for (const buf of finState.rayBufs) {
-        for (let i = 0; i < buf.positions.length; i += 3) {
-          const ox = buf.original[i], oy = buf.original[i + 1]
-          const r = Math.sqrt(ox * ox + oy * oy)
-          let z = 0
-          if (r > 0.01) {
-            const tRel = Math.min(r / finState.finLen, 1.0)
-            const p15 = Math.pow(tRel, 1.5)
-            z = daWaveAmp * (0.5 + 0.6 * speedFactor) * p15 * Math.sin(wp - tRel * WAVE_K)
-              - angV * 2.0 * p15
-          }
-          buf.positions[i] = ox
-          buf.positions[i + 1] = oy
-          buf.positions[i + 2] = z
-        }
-        buf.geo.attributes.position.needsUpdate = true
-      }
-    }
-
-    const { memOriginal, memLive, memGeo, rayBufs, tailLen } = tailState
-
-    for (let i = 0; i < memLive.length; i += 3) {
-      const ox = memOriginal[i], oy = memOriginal[i + 1]
-      const r = Math.sqrt(ox * ox + oy * oy)
-      let z = 0
-      if (r > 0.01) {
-        const tRel = Math.min(r / tailLen, 1.0)
-        const p15 = Math.pow(tRel, 1.5)
-        z = WAVE_AMP * (0.5 + 0.6 * speedFactor) * p15 * Math.sin(wp - tRel * WAVE_K)
-          - angV * 4.5 * p15
-      }
-      memLive[i] = ox
-      memLive[i + 1] = oy
-      memLive[i + 2] = z
-    }
-    memGeo.attributes.position.needsUpdate = true
-
-    for (const buf of rayBufs) {
-      for (let i = 0; i < buf.positions.length; i += 3) {
-        const ox = buf.original[i], oy = buf.original[i + 1]
-        const r = Math.sqrt(ox * ox + oy * oy)
-        let z = 0
-        if (r > 0.01) {
-          const tRel = Math.min(r / tailLen, 1.0)
-          const p15 = Math.pow(tRel, 1.5)
-          z = WAVE_AMP * (0.5 + 0.6 * speedFactor) * p15 * Math.sin(wp - tRel * WAVE_K)
-            - angV * 4.5 * p15
-        }
-        buf.positions[i] = ox
-        buf.positions[i + 1] = oy
-        buf.positions[i + 2] = z
-      }
-      buf.geo.attributes.position.needsUpdate = true
-    }
+    animateFinWave(tailState, WAVE_AMP, wp, speedFactor, angV * 4.5)
 
     if (glowRef.current > 0) {
       glowRef.current = Math.max(0, glowRef.current - dt * 0.7)

@@ -78,5 +78,4 @@ export const _origin = new THREE.Vector3(0, 0, 0)
 export const _targetQuat = new THREE.Quaternion()
 
 // ── Color references ──
-export const _baseMemColor = new THREE.Color('#e2604f')
 export const _lerpColor = new THREE.Color()

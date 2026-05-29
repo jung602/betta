@@ -255,8 +255,8 @@ export default function FrostedGlassBox({ tailPreset, tankModel, onFloorY, norma
           <MeshTransmissionMaterial
             map={gradientMap}
             color="#fafafa"
-            roughness={0.25}
-            transmission={0.9}
+            roughness={0.2}
+            transmission={1}
             thickness={0.1}
             chromaticAberration={0.01}
             anisotropy={0.1}
@@ -287,7 +287,7 @@ export default function FrostedGlassBox({ tailPreset, tankModel, onFloorY, norma
           <meshPhysicalMaterial
             color="#d4eaff"
             transparent
-            opacity={0.2}
+            opacity={0.1}
             roughness={0.1}
             metalness={0.05}
             envMapIntensity={1}
