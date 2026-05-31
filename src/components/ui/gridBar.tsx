@@ -65,8 +65,8 @@ function gameBarMessage(phase: GamePhase, winner: Cell, isDraw: boolean): string
       return "BETTA'S TURN"
     case 'ended':
       if (isDraw) return 'DRAW'
-      if (winner === 'O') return 'YOU WIN'
-      if (winner === 'X') return 'FISH WINS'
+      if (winner === 'O') return 'YOU WIN!'
+      if (winner === 'X') return 'YOU LOSE...'
       return null
     default:
       return null
@@ -121,6 +121,9 @@ function GamePanel({
       if (dst) {
         const ctx = dst.getContext('2d')
         if (ctx) {
+          // 1024px 트레이스를 패널 크기로 크게 축소하므로 고품질 보간으로 계단현상/어른거림 완화
+          ctx.imageSmoothingEnabled = true
+          ctx.imageSmoothingQuality = 'high'
           ctx.clearRect(0, 0, dst.width, dst.height)
           const src = api?.traceCanvas
           const rect = api?.getBoardRect?.()

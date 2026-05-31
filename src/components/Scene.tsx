@@ -6,6 +6,7 @@ import { FrostedGlassBox, type TankModelKey, type GlassFrontInfo } from './tank'
 import type { GameSurfaceApi } from './tank/TankGame'
 import { useTictactoeGame } from './tank/tiktaktoe'
 import { Nav, GridBar, type GridBarPanel } from './ui'
+import CanvasResultOverlay, { gameResult } from './ui/resultOverlay'
 import type { TailPresetKey } from './fish'
 
 const SCENE_SURFACE_BORDER = '1.5px solid rgba(158, 158, 158, 0.35)'
@@ -280,8 +281,26 @@ export default function Scene() {
     setTailPreset(key)
   }, [])
 
+  const result = gameActive ? gameResult(game.phase, game.winner, game.isDraw) : null
+
   return (
     <div className="app-shell">
+      {/* 게임 중엔 GridBar가 자라며 이 래퍼를 자연스럽게 절반으로 밀어냄.
+          결과 이미지 오버레이를 캔버스 위에 띄우기 위한 relative 컨테이너 */}
+      <div
+        style={{
+          position: 'relative',
+          display: 'flex',
+          flexDirection: 'column',
+          flex: 1,
+          minHeight: 0,
+          width: '100%',
+          border: SCENE_SURFACE_BORDER,
+          borderRadius: GLOSSY_SURFACE_RADIUS,
+          overflow: 'hidden',
+          boxShadow: GLOSSY_BUTTON_SHADOW,
+        }}
+      >
       <Canvas
         camera={{ position: [1.4, 1.04, 2.12], fov: 35 }}
         gl={{
@@ -292,14 +311,9 @@ export default function Scene() {
         }}
         shadows
         style={{
-          // 게임 중엔 GridBar가 자라며 이 캔버스를 자연스럽게 절반으로 밀어냄
           flex: 1,
           minHeight: 0,
           width: '100%',
-          border: SCENE_SURFACE_BORDER,
-          borderRadius: GLOSSY_SURFACE_RADIUS,
-          overflow: 'hidden',
-          boxShadow: GLOSSY_BUTTON_SHADOW,
         }}
       >
         <color attach="background" args={['#f0f5ff']} />
@@ -380,6 +394,9 @@ export default function Scene() {
           onArrive={handleArrive}
         />
       </Canvas>
+
+        {result && <CanvasResultOverlay result={result} />}
+      </div>
 
       <GridBar
         openPanel={openPanel}
