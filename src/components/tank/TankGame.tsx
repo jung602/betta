@@ -47,6 +47,8 @@ function boardCanvasRect(layout: GridLayout | null) {
 
 const BETTA_ARRIVE_DIST = 0.06
 const BETTA_PAUSE_BEFORE_X_MS = 200
+// X를 다 그린 뒤 잠시 머물렀다가 다음 차례로 넘어가(=물고기가 다시 이동) 자연스럽게
+const BETTA_PAUSE_AFTER_X_MS = 1000
 // 그리기 면(앞 유리)에서 살짝 안쪽으로 물려 물고기 몸이 유리를 뚫지 않도록
 const BETTA_GLASS_BACKOFF = 0.05
 // 상하/좌우(x,y) 여유: 작게 둬서 베타가 칸 끝까지 닿게(작은 어항에서 중간열에 갇히지 않도록)
@@ -291,7 +293,9 @@ export default function TankGame({
       const boardWithX = [...game.board]
       boardWithX[cellIdx] = 'X'
       window.setTimeout(() => {
-        animateMarkX(api, layout, boardWithX, cellIdx, () => game.completeBettaMove(), oStrokesRef.current)
+        animateMarkX(api, layout, boardWithX, cellIdx, () => {
+          window.setTimeout(() => game.completeBettaMove(), BETTA_PAUSE_AFTER_X_MS)
+        }, oStrokesRef.current)
       }, BETTA_PAUSE_BEFORE_X_MS)
     }
   })

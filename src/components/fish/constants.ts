@@ -23,9 +23,6 @@ export const ARRIVE_RADIUS = 0.0875
 export const MAX_HEADING_DELTA = 0.15
 export const MAX_ANG_VEL = 0.06
 
-// 방향(피치) 평탄화: 속도의 수직 성분을 줄여 몸이 위/아래를 덜 바라보게(평행 유영)
-export const PITCH_FLATTEN = 0.3
-
 // ── Depth preference (바닥 쪽으로는 잘 안 내려가게) ──
 // 선호 수심 기준선(센터=0, +면 상단 쪽). 이 아래로 내려가면 위로 밀어 올린다.
 export const DEPTH_PREF_FACTOR = 0.15
@@ -81,7 +78,6 @@ export const _desired = new THREE.Vector3()
 export const _steer = new THREE.Vector3()
 export const _wall = new THREE.Vector3()
 export const _tmp = new THREE.Vector3()
-export const _lookDir = new THREE.Vector3()
 export const _lookMat = new THREE.Matrix4()
 export const _up = new THREE.Vector3(0, 1, 0)
 export const _origin = new THREE.Vector3(0, 0, 0)
