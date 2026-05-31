@@ -25,7 +25,7 @@ import {
   _lerpColor,
 } from './constants'
 
-const FISH_BODY_PATH = `${import.meta.env.BASE_URL}fishbody.glb`
+const FISH_BODY_PATH = `${import.meta.env.BASE_URL}3d/fishbody.glb`
 
 interface BettaFishProps {
   mouseTarget: React.RefObject<THREE.Vector3 | null>

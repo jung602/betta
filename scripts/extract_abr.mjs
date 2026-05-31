@@ -5,7 +5,7 @@ import path from 'path'
 import zlib from 'zlib'
 
 const abrPath = process.argv[2]
-const outDir = process.argv[3] || 'public/brushes'
+const outDir = process.argv[3] || 'public/icon'
 
 const buf = fs.readFileSync(abrPath)
 let p = 0

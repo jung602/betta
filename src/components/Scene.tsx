@@ -13,9 +13,41 @@ const CAMERA_FOV = 35
 const INITIAL_CAM_POS = new THREE.Vector3(2, 1.5, 3)
 const ORIGIN = new THREE.Vector3(0, 0, 0)
 
+/** 게임 중 OrbitControls 허용 범위 — 아주 살짝만 */
+const GAME_ORBIT_AZIMUTH = 0.05
+const GAME_ORBIT_POLAR = 0.04
+const GAME_ORBIT_ZOOM = 0.2
+
 type OrbitControlsRef = React.ComponentRef<typeof OrbitControls>
 
-/** 게임 진입 시 어항 정면으로 줌인·잠금, 종료 시 원위치 복귀. 평상시엔 OrbitControls에 맡김 */
+function applyGameOrbitLimits(controls: NonNullable<OrbitControlsRef>, camera: THREE.Camera) {
+  const offset = new THREE.Vector3().subVectors(camera.position, controls.target)
+  const spherical = new THREE.Spherical().setFromVector3(offset)
+  controls.minAzimuthAngle = spherical.theta - GAME_ORBIT_AZIMUTH
+  controls.maxAzimuthAngle = spherical.theta + GAME_ORBIT_AZIMUTH
+  controls.minPolarAngle = Math.max(0.15, spherical.phi - GAME_ORBIT_POLAR)
+  controls.maxPolarAngle = Math.min(Math.PI - 0.15, spherical.phi + GAME_ORBIT_POLAR)
+  controls.minDistance = Math.max(0.5, spherical.radius - GAME_ORBIT_ZOOM)
+  controls.maxDistance = spherical.radius + GAME_ORBIT_ZOOM
+  controls.enablePan = false
+  controls.enableRotate = true
+  controls.enableZoom = true
+  controls.autoRotate = false
+}
+
+function resetOrbitLimits(controls: NonNullable<OrbitControlsRef>) {
+  controls.minAzimuthAngle = -Infinity
+  controls.maxAzimuthAngle = Infinity
+  controls.minPolarAngle = Math.PI / 4
+  controls.maxPolarAngle = Math.PI
+  controls.minDistance = 0
+  controls.maxDistance = Infinity
+  controls.enablePan = true
+  controls.enableRotate = true
+  controls.enableZoom = true
+}
+
+/** 게임 진입 시 어항 정면으로 줌인, 도착 후 OrbitControls를 아주 좁게만 허용. 종료 시 원위치 복귀 */
 function CameraRig({
   active,
   glassFront,
@@ -28,7 +60,7 @@ function CameraRig({
   onArrive: () => void
 }) {
   const { camera, size } = useThree()
-  const arrivedRef = useRef(false)
+  const gameViewReadyRef = useRef(false)
   const returningRef = useRef(false)
   const prevActiveRef = useRef(false)
 
@@ -45,19 +77,19 @@ function CameraRig({
   useEffect(() => {
     const controls = controlsRef.current
     if (active) {
-      arrivedRef.current = false
+      gameViewReadyRef.current = false
       returningRef.current = false
       if (controls) {
         controls.autoRotate = false
         controls.enabled = false
       }
     } else if (prevActiveRef.current) {
-      // 게임 종료 → 초기 시점으로 복귀 애니메이션만 실행
+      gameViewReadyRef.current = false
       returningRef.current = true
-      arrivedRef.current = false
       if (controls) {
         controls.enabled = false
         controls.autoRotate = false
+        resetOrbitLimits(controls)
       }
     }
     prevActiveRef.current = active
@@ -66,7 +98,7 @@ function CameraRig({
   useFrame(() => {
     const controls = controlsRef.current
 
-    if (active && gamePos) {
+    if (active && gamePos && !gameViewReadyRef.current) {
       camera.position.lerp(gamePos, 0.08)
       if (controls) {
         controls.target.lerp(ORIGIN, 0.08)
@@ -74,8 +106,12 @@ function CameraRig({
       } else {
         camera.lookAt(ORIGIN)
       }
-      if (!arrivedRef.current && camera.position.distanceTo(gamePos) < 0.02) {
-        arrivedRef.current = true
+      if (camera.position.distanceTo(gamePos) < 0.02) {
+        gameViewReadyRef.current = true
+        if (controls) {
+          applyGameOrbitLimits(controls, camera)
+          controls.enabled = true
+        }
         onArrive()
       }
       return
@@ -92,18 +128,19 @@ function CameraRig({
       if (camera.position.distanceTo(INITIAL_CAM_POS) < 0.02) {
         returningRef.current = false
         if (controls) {
+          resetOrbitLimits(controls)
           controls.enabled = true
           controls.autoRotate = true
         }
       }
     }
-    // idle: 카메라/타겟 건드리지 않음 → OrbitControls 자유 조작
+    // idle / 게임 중(도착 후): CameraRig은 카메라를 건드리지 않음
   })
 
   return null
 }
 
-const DEPO_PATH = `${import.meta.env.BASE_URL}milkydepofish.glb`
+const DEPO_PATH = `${import.meta.env.BASE_URL}3d/milkydepofish.glb`
 
 function DepoFish({ floorY, scale = 0.55, rotation = [0, Math.PI / 3.5, 0] }: { floorY: number; scale?: number; rotation?: [number, number, number] }) {
   const { scene } = useGLTF(DEPO_PATH)
@@ -309,14 +346,16 @@ export default function Scene() {
         <OrbitControls
           ref={controlsRef}
           makeDefault
-          enablePan={true}
+          enablePan={!gameActive}
           enableZoom={true}
           minPolarAngle={Math.PI / 4}
           maxPolarAngle={Math.PI / 1}
-          autoRotate={true}
+          autoRotate={!gameActive}
           autoRotateSpeed={0.5}
           dampingFactor={0.05}
           enableDamping
+          rotateSpeed={gameActive ? 0.35 : 1}
+          zoomSpeed={gameActive ? 0.4 : 1}
         />
 
         <CameraRig
@@ -369,8 +408,8 @@ export default function Scene() {
         zIndex: 2,
       }}>
         {([
-          { key: 'tail' as const, icon: `${import.meta.env.BASE_URL}fish.png`, label: 'FISH' },
-          { key: 'tank' as const, icon: `${import.meta.env.BASE_URL}tank.png`, label: 'TANK' },
+          { key: 'tail' as const, icon: `${import.meta.env.BASE_URL}icon/fish.png`, label: 'FISH' },
+          { key: 'tank' as const, icon: `${import.meta.env.BASE_URL}icon/tank.png`, label: 'TANK' },
         ]).map(({ key, icon, label }) => (
           <div key={key} style={{ position: 'relative', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4 }}>
             <div style={{ position: 'absolute', left: 40, top: 40 }}>
@@ -401,7 +440,7 @@ export default function Scene() {
               }}
             >
               <img
-                src={`${import.meta.env.BASE_URL}button.png`}
+                src={`${import.meta.env.BASE_URL}icon/button.png`}
                 alt=""
                 style={{
                   position: 'absolute',

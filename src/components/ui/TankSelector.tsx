@@ -2,9 +2,9 @@ import { TANK_MODELS, type TankModelKey } from '../tank'
 import RadialSelector, { type RadialItem } from './RadialSelector'
 
 const TANK_ICONS: Record<TankModelKey, string> = {
-  square: 'square.png',
-  round: 'tank.png',
-  imac: 'imac.png',
+  square: 'icon/square.png',
+  round: 'icon/tank.png',
+  imac: 'icon/imac.png',
 }
 
 const items: RadialItem<TankModelKey>[] = (Object.keys(TANK_MODELS) as TankModelKey[])

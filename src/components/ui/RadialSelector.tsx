@@ -1,6 +1,6 @@
 const BUTTON_SIZE = 46
 const ARC_RADIUS = 72
-const WHITE_BG = `${import.meta.env.BASE_URL}white.png`
+const WHITE_BG = `${import.meta.env.BASE_URL}icon/white.png`
 
 export interface RadialItem<K extends string> {
   key: K

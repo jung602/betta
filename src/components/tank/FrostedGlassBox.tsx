@@ -13,9 +13,9 @@ import type { useTictactoeGame } from './tiktaktoe'
 type Game = ReturnType<typeof useTictactoeGame>
 
 export const TANK_MODELS = {
-  square: { path: 'squaretank.glb', label: 'Square', shape: 'box' as const },
-  round:  { path: 'roundtank.glb',  label: 'Round', shape: 'cylinder' as const },
-  imac:   { path: 'imactank.glb',   label: 'iMac',  shape: 'box' as const },
+  square: { path: '3d/squaretank.glb', label: 'Square', shape: 'box' as const },
+  round:  { path: '3d/roundtank.glb',  label: 'Round', shape: 'cylinder' as const },
+  imac:   { path: '3d/imactank.glb',   label: 'iMac',  shape: 'box' as const },
 }
 
 export type TankModelKey = keyof typeof TANK_MODELS
@@ -305,8 +305,8 @@ export default function FrostedGlassBox({
           <meshPhysicalMaterial
             color="#d4eaff"
             transparent
-            opacity={0.05}
-            roughness={0.1}
+            opacity={0.}
+            roughness={0.2}
             metalness={0.05}
             envMapIntensity={1}
             clearcoat={1}

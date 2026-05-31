@@ -1,8 +1,8 @@
 // 포토샵 마커 브러시(.abr)에서 추출한 결 텍스처를 "패턴"으로 사용해
 // 외곽선은 깔끔하고 내부에만 마커 결이 있는 사각(치즐) 마카 획을 재현한다.
-// (extract_abr.mjs 로 public/brushes/marker4.png 생성 — 치즐 마커 결)
+// (extract_abr.mjs 로 public/icon/marker4.png 생성 — 치즐 마커 결)
 
-const TEXTURE_FILE = 'brushes/marker4.png'
+const TEXTURE_FILE = 'icon/marker4.png'
 const DEFAULT_COLOR = '#1b1b1b'
 /** 모든 마커 획(격자·X·O·사용자 드로잉)의 두께(px). 여기 한 곳에서만 관리. */
 export const MARKER_BRUSH_WIDTH = 20

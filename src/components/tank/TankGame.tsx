@@ -223,7 +223,6 @@ export default function TankGame({
       height={height}
       geometry={geometry}
       position={position}
-      bare
       paintMode={paintMode}
       onTraceReady={handleTraceReady}
       onStrokeStart={handleStrokeStart}
