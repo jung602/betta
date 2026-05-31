@@ -1,12 +1,10 @@
-import { useRef, useEffect, type MutableRefObject, type PointerEvent as ReactPointerEvent } from 'react'
+import { useRef, useEffect, useState, type MutableRefObject, type PointerEvent as ReactPointerEvent } from 'react'
 import { TANK_MODELS, type TankModelKey } from '../tank'
 import { TAIL_PRESETS, type TailPresetKey } from '../fish'
 import type { GamePhase } from '../tank/tiktaktoe/useTictactoeGame'
 import type { Cell } from '../tank/tiktaktoe/tictactoeAi'
 import type { GameSurfaceApi } from '../tank/TankGame'
 import { PAINT_TEXTURE_SIZE, type UVPoint } from '../tank/frostedGlassPaint'
-import { GlossyGlow, GlossyHighlight } from './glossySurface'
-
 const FONT =
   '-apple-system, BlinkMacSystemFont, "Apple SD Gothic Neo", system-ui, sans-serif'
 
@@ -57,8 +55,6 @@ const TAIL_ITEMS = (Object.keys(TAIL_PRESETS) as TailPresetKey[])
     label: TAIL_PRESETS[key].label,
   }))
 
-const OPTION_SIZE = 46
-
 function gameBarMessage(phase: GamePhase, winner: Cell, isDraw: boolean): string | null {
   switch (phase) {
     case 'animating':
@@ -75,61 +71,6 @@ function gameBarMessage(phase: GamePhase, winner: Cell, isDraw: boolean): string
     default:
       return null
   }
-}
-
-function BarOptionButton({
-  icon,
-  label,
-  selected,
-  onSelect,
-}: {
-  icon: string
-  label: string
-  selected: boolean
-  onSelect: () => void
-}) {
-  return (
-    <button
-      type="button"
-      aria-label={label}
-      onClick={onSelect}
-      style={{
-        position: 'relative',
-        width: OPTION_SIZE,
-        height: OPTION_SIZE,
-        flexShrink: 0,
-        borderRadius: '50%',
-        border: 'none',
-        backgroundColor: selected ? 'rgba(150, 222, 245, 1)' : 'rgba(224, 224, 224, 1)',
-        cursor: 'pointer',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        padding: 0,
-        overflow: 'hidden',
-        boxShadow: '1px 1px 0px 0px rgba(255, 255, 255, 1), 0px -1px 0px 0px rgba(0, 0, 0, 0.2)',
-      }}
-    >
-      <GlossyHighlight variant="circle" theme="fafafa" />
-      <GlossyGlow variant="circle" theme="fafafa" />
-      <img
-        src={icon}
-        alt=""
-        style={{
-          position: 'absolute',
-          zIndex: 2,
-          top: '50%',
-          left: '50%',
-          transform: 'translate(-50%, -50%)',
-          width: 30,
-          height: 30,
-          objectFit: 'contain',
-          pointerEvents: 'none',
-          filter: selected ? 'none' : 'grayscale(0.3) opacity(0.85)',
-        }}
-      />
-    </button>
-  )
 }
 
 const clamp01 = (v: number) => (v < 0 ? 0 : v > 1 ? 1 : v)
@@ -296,6 +237,193 @@ function GamePanel({
   )
 }
 
+const CAROUSEL_ICON_SIZE = 24
+const ARROW_FILL = 'rgba(85, 102, 170, 0.9)'
+
+type PickerItem<K extends string> = { key: K; icon: string; label: string }
+
+function GridArrow({
+  direction,
+  onClick,
+  ariaLabel,
+}: {
+  direction: 'left' | 'right'
+  onClick: () => void
+  ariaLabel: string
+}) {
+  return (
+    <button
+      type="button"
+      aria-label={ariaLabel}
+      onClick={onClick}
+      style={{
+        flexShrink: 0,
+        width: 30,
+        height: 30,
+        padding: 0,
+        border: 'none',
+        background: 'transparent',
+        cursor: 'pointer',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+      }}
+    >
+      <svg
+        width={15}
+        height={15}
+        viewBox="0 0 16 16"
+        style={{
+          transform: direction === 'left' ? 'rotate(90deg)' : 'rotate(-90deg)',
+        }}
+      >
+        <polygon points="2,5 14,5 8,12" fill={ARROW_FILL} />
+      </svg>
+    </button>
+  )
+}
+
+function OptionCarousel<K extends string>({
+  items,
+  selected,
+  onSelect,
+}: {
+  items: PickerItem<K>[]
+  selected: K
+  onSelect: (key: K) => void
+}) {
+  if (items.length === 0) return null
+
+  const index = Math.max(0, items.findIndex(item => item.key === selected))
+  const item = items[index]
+  const prev = () => onSelect(items[(index - 1 + items.length) % items.length].key)
+  const next = () => onSelect(items[(index + 1) % items.length].key)
+
+  return (
+    <div
+      role="group"
+      aria-label={`${item.label} 선택`}
+      style={{
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        gap: 8,
+        width: '100%',
+        maxWidth: 320,
+      }}
+    >
+      <GridArrow direction="left" onClick={prev} ariaLabel="이전 옵션" />
+      <div
+        style={{
+          flex: 1,
+          minWidth: 0,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          gap: 10,
+          transform: 'translateX(-12px)',
+        }}
+      >
+        <img
+          src={item.icon}
+          alt=""
+          style={{
+            width: CAROUSEL_ICON_SIZE,
+            height: CAROUSEL_ICON_SIZE,
+            flexShrink: 0,
+            objectFit: 'contain',
+            pointerEvents: 'none',
+          }}
+        />
+        <span
+          style={{
+            fontFamily: FONT,
+            fontSize: 12,
+            fontWeight: 600,
+            letterSpacing: '0.04em',
+            color: 'rgba(85, 102, 170, 1)',
+            whiteSpace: 'nowrap',
+          }}
+        >
+          {item.label}
+        </span>
+      </div>
+      <GridArrow direction="right" onClick={next} ariaLabel="다음 옵션" />
+    </div>
+  )
+}
+
+/** 그리드 바 중앙 접기/펼치기 버튼 */
+function CollapseToggle({ collapsed, onClick }: { collapsed: boolean; onClick: () => void }) {
+  return (
+    <button
+      type="button"
+      aria-label={collapsed ? '펼치기' : '접기'}
+      onClick={onClick}
+      style={{
+        position: 'absolute',
+        top: 0,
+        left: '50%',
+        transform: 'translateX(-50%)',
+        zIndex: 5,
+        width: 30,
+        height: 30,
+        padding: 0,
+        border: 'none',
+        background: 'transparent',
+        cursor: 'pointer',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+      }}
+    >
+      <svg
+        width="15"
+        height="15"
+        viewBox="0 0 16 16"
+        style={{
+          transform: collapsed ? 'rotate(180deg)' : 'none',
+          transition: 'transform 0.25s ease',
+        }}
+      >
+        <polygon points="2,5 14,5 8,12" fill="rgba(85, 102, 170, 0.9)" />
+      </svg>
+    </button>
+  )
+}
+
+/** 접힌 상태: 원래 높이 바에 게임 상태 텍스트만 */
+function StatusBar({ status }: { status: string | null }) {
+  return (
+    <div
+      style={{
+        flex: 1,
+        width: '100%',
+        ...GRID_BAR_SURFACE,
+        overflow: 'hidden',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        padding: '0 12px',
+      }}
+    >
+      {status && (
+        <div
+          style={{
+            fontFamily: FONT,
+            fontSize: 12,
+            fontWeight: 600,
+            letterSpacing: '0.04em',
+            color: 'rgba(85, 102, 170, 1)',
+          }}
+        >
+          {status}
+        </div>
+      )}
+    </div>
+  )
+}
+
 export type GridBarPanel = 'tank' | 'fish' | null
 
 interface GridBarProps {
@@ -324,23 +452,41 @@ export default function GridBar({
   gameSurfaceRef,
 }: GridBarProps) {
   const statusText = gameActive ? gameBarMessage(gamePhase, winner, isDraw) : null
+  const [collapsed, setCollapsed] = useState(false)
+  // 세로(가로<세로) 화면이면 게임 진입 시 기본 접힘 — 누르면 펼침
+  useEffect(() => {
+    if (gameActive) {
+      setCollapsed(window.innerHeight > window.innerWidth)
+    } else {
+      setCollapsed(false)
+    }
+  }, [gameActive])
+  const expanded = gameActive && !collapsed
 
   return (
     <div
       style={{
+        position: 'relative',
         width: '100%',
         minHeight: 0,
         display: 'flex',
-        // 게임 시작/종료 시 높이 자연스럽게 전환(어항 1/2 ↔ 격자 패널 확대)
-        flexGrow: gameActive ? 1 : 0,
-        flexShrink: gameActive ? 1 : 0,
-        flexBasis: gameActive ? 0 : 80,
+        // 펼침(게임 중 + 미접힘)일 때만 절반 높이로 확대, 그 외엔 원래 64px
+        flexGrow: expanded ? 1 : 0,
+        flexShrink: expanded ? 1 : 0,
+        flexBasis: expanded ? 0 : 64,
         transition: 'flex-grow 0.45s ease, flex-basis 0.45s ease',
         overflow: 'hidden',
       }}
     >
+      {gameActive && (
+        <CollapseToggle collapsed={collapsed} onClick={() => setCollapsed(c => !c)} />
+      )}
       {gameActive ? (
-        <GamePanel surfaceRef={gameSurfaceRef} status={statusText} />
+        expanded ? (
+          <GamePanel surfaceRef={gameSurfaceRef} status={statusText} />
+        ) : (
+          <StatusBar status={statusText} />
+        )
       ) : (
         <div
           style={{
@@ -355,47 +501,9 @@ export default function GridBar({
           }}
         >
           {openPanel === 'tank' ? (
-            <div
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                gap: 12,
-                width: '100%',
-                overflowX: 'auto',
-              }}
-            >
-              {TANK_ITEMS.map(item => (
-                <BarOptionButton
-                  key={item.key}
-                  icon={item.icon}
-                  label={item.label}
-                  selected={tankModel === item.key}
-                  onSelect={() => onTankSelect(item.key)}
-                />
-              ))}
-            </div>
+            <OptionCarousel items={TANK_ITEMS} selected={tankModel} onSelect={onTankSelect} />
           ) : openPanel === 'fish' ? (
-            <div
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                gap: 12,
-                width: '100%',
-                overflowX: 'auto',
-              }}
-            >
-              {TAIL_ITEMS.map(item => (
-                <BarOptionButton
-                  key={item.key}
-                  icon={item.icon}
-                  label={item.label}
-                  selected={tailPreset === item.key}
-                  onSelect={() => onTailSelect(item.key)}
-                />
-              ))}
-            </div>
+            <OptionCarousel items={TAIL_ITEMS} selected={tailPreset} onSelect={onTailSelect} />
           ) : null}
         </div>
       )}

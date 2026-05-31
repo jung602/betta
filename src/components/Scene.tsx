@@ -18,7 +18,7 @@ const CAMERA_FOV = 35
 const INITIAL_CAM_POS = new THREE.Vector3(1.4, 1.04, 2.12)
 const ORIGIN = new THREE.Vector3(0, 0, 0)
 /** 게임 시 어항 프레이밍. 클수록 카메라가 멀어져 줌인이 덜함 */
-const GAME_FRAME_SCALE = 1.32
+const GAME_FRAME_SCALE = 1.0
 
 /** 게임 중 OrbitControls 허용 범위 — 아주 살짝만 */
 const GAME_ORBIT_AZIMUTH = 0.05
@@ -70,6 +70,8 @@ function CameraRig({
   const gameViewReadyRef = useRef(false)
   const returningRef = useRef(false)
   const prevActiveRef = useRef(false)
+  const lastSizeKeyRef = useRef(0)
+  const arrivedOnceRef = useRef(false)
 
   const gamePos = useMemo(() => {
     if (!glassFront) return null
@@ -85,6 +87,7 @@ function CameraRig({
     const controls = controlsRef.current
     if (active) {
       gameViewReadyRef.current = false
+      arrivedOnceRef.current = false
       returningRef.current = false
       if (controls) {
         controls.autoRotate = false
@@ -105,21 +108,34 @@ function CameraRig({
   useFrame(() => {
     const controls = controlsRef.current
 
-    if (active && gamePos && !gameViewReadyRef.current) {
-      camera.position.lerp(gamePos, 0.08)
-      if (controls) {
-        controls.target.lerp(ORIGIN, 0.08)
-        controls.update()
-      } else {
-        camera.lookAt(ORIGIN)
-      }
-      if (camera.position.distanceTo(gamePos) < 0.02) {
-        gameViewReadyRef.current = true
+    if (active && gamePos) {
+      const sizeKey = Math.round(size.width) * 100000 + Math.round(size.height)
+      const sizeStable = sizeKey === lastSizeKeyRef.current
+      lastSizeKeyRef.current = sizeKey
+
+      // 캔버스가 리사이즈 중(접기/펴기·시작)이거나 아직 초기 줌인 전이면
+      // 카메라가 변하는 캔버스에 맞춰 어항을 계속 프레이밍 → 부드러운 줌인/아웃
+      if (!sizeStable || !gameViewReadyRef.current) {
+        if (controls) controls.enabled = false
+        camera.position.lerp(gamePos, 0.15)
         if (controls) {
-          applyGameOrbitLimits(controls, camera)
-          controls.enabled = true
+          controls.target.lerp(ORIGIN, 0.15)
+          controls.update()
+        } else {
+          camera.lookAt(ORIGIN)
         }
-        onArrive()
+        // 사이즈 안정 + 도착 시 OrbitControls로 핸드오프(게임 시작은 1회만)
+        if (sizeStable && camera.position.distanceTo(gamePos) < 0.02) {
+          gameViewReadyRef.current = true
+          if (controls) {
+            applyGameOrbitLimits(controls, camera)
+            controls.enabled = true
+          }
+          if (!arrivedOnceRef.current) {
+            arrivedOnceRef.current = true
+            onArrive()
+          }
+        }
       }
       return
     }

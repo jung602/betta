@@ -50,7 +50,7 @@ html, body, #root {
   display: flex;
   flex-direction: column;
   gap: 12px;
-  padding: 20px 16px 40px;
+  padding: 20px 16px 20px;
   box-sizing: border-box;
 }
 
