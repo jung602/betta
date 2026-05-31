@@ -15,7 +15,7 @@ const ORIGIN = new THREE.Vector3(0, 0, 0)
 
 type OrbitControlsRef = React.ComponentRef<typeof OrbitControls>
 
-/** 게임 진입 시 어항 정면으로 줌인·잠금, 종료 시 원위치 복귀시키는 카메라 리그 */
+/** 게임 진입 시 어항 정면으로 줌인·잠금, 종료 시 원위치 복귀. 평상시엔 OrbitControls에 맡김 */
 function CameraRig({
   active,
   glassFront,
@@ -29,44 +29,75 @@ function CameraRig({
 }) {
   const { camera, size } = useThree()
   const arrivedRef = useRef(false)
+  const returningRef = useRef(false)
+  const prevActiveRef = useRef(false)
 
-  const desired = useMemo(() => {
-    if (!active || !glassFront) return INITIAL_CAM_POS.clone()
+  const gamePos = useMemo(() => {
+    if (!glassFront) return null
     const half = (CAMERA_FOV * Math.PI) / 360
     const aspect = size.width / Math.max(size.height, 1)
     const dH = glassFront.height / 2 / Math.tan(half)
     const dW = glassFront.width / 2 / (Math.tan(half) * aspect)
     const dist = Math.max(dH, dW) * 1.15 + glassFront.frontZ
     return new THREE.Vector3(0, 0, dist)
-  }, [active, glassFront, size.width, size.height])
+  }, [glassFront, size.width, size.height])
 
   useEffect(() => {
-    arrivedRef.current = false
     const controls = controlsRef.current
-    if (controls && active) {
-      controls.autoRotate = false
-      controls.enabled = false
+    if (active) {
+      arrivedRef.current = false
+      returningRef.current = false
+      if (controls) {
+        controls.autoRotate = false
+        controls.enabled = false
+      }
+    } else if (prevActiveRef.current) {
+      // 게임 종료 → 초기 시점으로 복귀 애니메이션만 실행
+      returningRef.current = true
+      arrivedRef.current = false
+      if (controls) {
+        controls.enabled = false
+        controls.autoRotate = false
+      }
     }
+    prevActiveRef.current = active
   }, [active, controlsRef])
 
   useFrame(() => {
     const controls = controlsRef.current
-    camera.position.lerp(desired, 0.08)
-    if (controls) {
-      controls.target.lerp(ORIGIN, 0.08)
-      controls.update()
-    } else {
-      camera.lookAt(ORIGIN)
+
+    if (active && gamePos) {
+      camera.position.lerp(gamePos, 0.08)
+      if (controls) {
+        controls.target.lerp(ORIGIN, 0.08)
+        controls.update()
+      } else {
+        camera.lookAt(ORIGIN)
+      }
+      if (!arrivedRef.current && camera.position.distanceTo(gamePos) < 0.02) {
+        arrivedRef.current = true
+        onArrive()
+      }
+      return
     }
-    const d = camera.position.distanceTo(desired)
-    if (active && !arrivedRef.current && d < 0.02) {
-      arrivedRef.current = true
-      onArrive()
+
+    if (returningRef.current) {
+      camera.position.lerp(INITIAL_CAM_POS, 0.08)
+      if (controls) {
+        controls.target.lerp(ORIGIN, 0.08)
+        controls.update()
+      } else {
+        camera.lookAt(ORIGIN)
+      }
+      if (camera.position.distanceTo(INITIAL_CAM_POS) < 0.02) {
+        returningRef.current = false
+        if (controls) {
+          controls.enabled = true
+          controls.autoRotate = true
+        }
+      }
     }
-    if (!active && controls && d < 0.02 && !controls.enabled) {
-      controls.enabled = true
-      controls.autoRotate = true
-    }
+    // idle: 카메라/타겟 건드리지 않음 → OrbitControls 자유 조작
   })
 
   return null
@@ -228,13 +259,20 @@ export default function Scene() {
           shadow-mapSize={[2048, 2048]}
           color="#ffffff"
         />
-        <directionalLight
-          position={[-3, 4, -2]}
-          intensity={1}
-          color="#a8d4ff"
-        />
-        <pointLight position={[0, 2, 3]} intensity={0.8} color="#dceeff" />
-        <pointLight position={[-2, 1, 1]} intensity={0.4} color="#b0d4ff" />
+       
+        {/* 어항 아래에서 위로 비추는 조명 */}
+        <group position={[0, floorY - 1, 0]}>
+          <spotLight
+            angle={1}
+            penumbra={1}
+            intensity={0.1}
+            color="#b8e4ff"
+            distance={5}
+            decay={5}
+            castShadow
+          >
+          </spotLight>
+        </group>
 
         <group position={showMilky ? [0.5, 0, 0] : [0, 0, 0]}>
           <FrostedGlassBox
