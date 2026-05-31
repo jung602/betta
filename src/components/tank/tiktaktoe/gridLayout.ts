@@ -133,8 +133,12 @@ export function createRandomGridLayout(
   const reachY = reach ? Math.max(reach.y, 0.05) : planeHeight / 2
   const CELL_SPREAD = (2 / 3) * 1.2 // 셀 중심이 보드 중심에서 벗어나는 비율(+회전 여유)
   const sizeFactor = 0.5 + Math.random() * 0.1
-  const halfX = (planeWidth / 2) * sizeFactor
-  const halfY = (planeHeight / 2) * sizeFactor
+  // 칸을 정사각형으로: 월드에서 가로·세로 반-크기를 동일하게(짧은 변 기준).
+  // worldToCanvas가 planeWidth/planeHeight로 각각 정규화하므로 텍스처엔 비율 보정되어 그려지고,
+  // 직사각형 메시에 입혀질 때 다시 펴져 화면상 정사각형 칸이 된다.
+  const half = (Math.min(planeWidth, planeHeight) / 2) * sizeFactor
+  const halfX = half
+  const halfY = half
   const cellReachX = CELL_SPREAD * halfX
   const cellReachY = CELL_SPREAD * halfY
   // 중심 이동 범위: 보드 외곽이 그리기 면 안 + (안전) 셀 중심이 도달영역 안

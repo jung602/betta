@@ -19,8 +19,11 @@ export function createPaintTexture() {
 
   const texture = new THREE.CanvasTexture(canvas)
   texture.colorSpace = THREE.NoColorSpace
-  texture.minFilter = THREE.LinearFilter
+  // 밉맵 + 이방성 필터링: 면이 작아지거나 비스듬할 때 선이 지글거리는 계단현상 완화
+  texture.minFilter = THREE.LinearMipmapLinearFilter
   texture.magFilter = THREE.LinearFilter
+  texture.generateMipmaps = true
+  texture.anisotropy = 16 // three가 하드웨어 최대치로 자동 클램프
   return { canvas, ctx, texture }
 }
 
