@@ -232,12 +232,12 @@ export default function Scene() {
   }, [])
 
   return (
-    <div style={{
-      width: '100vw',
-      height: '100vh',
-      background: 'linear-gradient(180deg, #eaf2ff 0%, #f0f6ff 50%, #ffffff 100%)',
-      position: 'relative',
-    }}>
+    <div
+      className="app-shell"
+      style={{
+        background: 'linear-gradient(180deg, #eaf2ff 0%, #f0f6ff 50%, #ffffff 100%)',
+      }}
+    >
       <Canvas
         camera={{ position: [2, 1.5, 3], fov: 35 }}
         gl={{

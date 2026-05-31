@@ -308,12 +308,9 @@ export default function TiktaktoScene() {
 
   return (
     <div
+      className="app-shell"
       style={{
-        width: '100vw',
-        height: '100vh',
         background: SCENE_BG,
-        overflow: 'hidden',
-        position: 'relative',
       }}
     >
       <Canvas

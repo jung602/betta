@@ -24,7 +24,7 @@ export const MAX_HEADING_DELTA = 0.15
 export const MAX_ANG_VEL = 0.06
 
 // ── Wave animation ──
-export const WAVE_AMP = 0.45
+export const WAVE_AMP = 1
 export const WAVE_SPEED = 3.2
 export const WAVE_K = 5.5
 export const BODY_WAVE_AMP = 0.08
