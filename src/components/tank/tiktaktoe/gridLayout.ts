@@ -1,12 +1,5 @@
 import { PAINT_TEXTURE_SIZE, type UVPoint } from '../frostedGlassPaint'
 
-export interface CellBounds {
-  u0: number
-  v0: number
-  u1: number
-  v1: number
-}
-
 export interface GridLayout {
   planeWidth: number
   planeHeight: number

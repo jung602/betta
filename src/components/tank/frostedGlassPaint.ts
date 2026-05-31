@@ -60,29 +60,6 @@ export function paintClearStroke(
   ctx.restore()
 }
 
-export function paintTraceStroke(
-  ctx: CanvasRenderingContext2D,
-  u: number,
-  v: number,
-  size = PAINT_TEXTURE_SIZE,
-  radius = BRUSH_RADIUS_PX,
-) {
-  const x = u * size
-  const y = (1 - v) * size
-  const gradient = ctx.createRadialGradient(x, y, 0, x, y, radius)
-  gradient.addColorStop(0, 'rgba(0, 0, 0, 1)')
-  gradient.addColorStop(0.6, 'rgba(0, 0, 0, 0.6)')
-  gradient.addColorStop(1, 'rgba(0, 0, 0, 0)')
-
-  ctx.save()
-  ctx.globalCompositeOperation = 'source-over'
-  ctx.fillStyle = gradient
-  ctx.beginPath()
-  ctx.arc(x, y, radius, 0, Math.PI * 2)
-  ctx.fill()
-  ctx.restore()
-}
-
 export function resetPaintCanvas(ctx: CanvasRenderingContext2D, size = PAINT_TEXTURE_SIZE) {
   ctx.globalCompositeOperation = 'source-over'
   ctx.fillStyle = '#ffffff'

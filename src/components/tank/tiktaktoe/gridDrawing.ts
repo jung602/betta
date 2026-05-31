@@ -96,14 +96,6 @@ function getHandDrawn(layout: GridLayout): HandDrawn {
   return cached
 }
 
-export function getGridLines(layout: GridLayout, size = PAINT_TEXTURE_SIZE) {
-  return gridLinesLocal(layout).map((ln) => {
-    const a = boardLocalToCanvas(layout, ln.x0, ln.y0, size)
-    const b = boardLocalToCanvas(layout, ln.x1, ln.y1, size)
-    return { x0: a.x, y0: a.y, x1: b.x, y1: b.y }
-  })
-}
-
 function strokeGridFull(ctx: CanvasRenderingContext2D, layout: GridLayout) {
   ctx.save()
   applyMarkerStyle(ctx)

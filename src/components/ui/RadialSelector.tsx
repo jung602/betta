@@ -1,7 +1,13 @@
-const BUTTON_SIZE = 46
-const ARC_RADIUS = 72
-const WHITE_BG = `${import.meta.env.BASE_URL}icon/white.png`
+import { GlossyGlow, GlossyHighlight } from './glossySurface'
 
+export const RADIAL_BUTTON_SIZE = 46
+export const RADIAL_ARC_RADIUS = 72
+/** 원형 배경이 아크·버튼 전체를 덮도록 하는 지름(px) */
+export const RADIAL_BACKDROP_SIZE =
+  2 * (RADIAL_ARC_RADIUS + RADIAL_BUTTON_SIZE / 2 + 6)
+
+const BUTTON_SIZE = RADIAL_BUTTON_SIZE
+const ARC_RADIUS = RADIAL_ARC_RADIUS
 export interface RadialItem<K extends string> {
   key: K
   /** Fully resolved icon image src. */
@@ -47,6 +53,7 @@ export default function RadialSelector<K extends string>({
         return (
           <button
             key={key}
+            type="button"
             onClick={() => onSelect(key)}
             style={{
               position: 'absolute',
@@ -55,8 +62,10 @@ export default function RadialSelector<K extends string>({
               width: BUTTON_SIZE,
               height: BUTTON_SIZE,
               borderRadius: '50%',
-              border: isSelected ? '2px solid rgba(48,100,192,0.45)' : '2px solid transparent',
-              background: 'transparent',
+              border: 'none',
+              backgroundColor: isSelected
+                ? 'rgba(150, 222, 245, 1)'
+                : 'rgba(224, 224, 224, 1)',
               cursor: 'pointer',
               display: 'flex',
               alignItems: 'center',
@@ -68,38 +77,25 @@ export default function RadialSelector<K extends string>({
               transform: visible ? 'scale(1)' : 'scale(0.3)',
               transitionDelay: visible ? `${i * 30}ms` : '0ms',
               pointerEvents: visible ? 'auto' : 'none',
-              boxShadow: isSelected
-                ? '0 2px 10px rgba(48,100,192,0.2)'
-                : '0 1px 4px rgba(0,0,0,0.06)',
+              boxShadow: '1px 1px 0px 0px rgba(255, 255, 255, 1), 0px -1px 0px 0px rgba(0, 0, 0, 0.2)',
             }}
           >
-            <img
-              src={WHITE_BG}
-              alt=""
-              style={{
-                position: 'absolute',
-                top: 0,
-                left: 0,
-                width: '100%',
-                height: '100%',
-                objectFit: 'cover',
-                borderRadius: '50%',
-                pointerEvents: 'none',
-                opacity: isSelected ? 0.95 : 0.75,
-                transition: 'opacity 0.2s ease',
-              }}
-            />
+            <GlossyHighlight variant="circle" theme="fafafa" />
+            <GlossyGlow variant="circle" theme="fafafa" />
             <img
               src={icon}
               alt={label}
               style={{
-                position: 'relative',
-                zIndex: 1,
+                position: 'absolute',
+                zIndex: 2,
+                top: '50%',
+                left: '50%',
+                transform: 'translate(-50%, -50%)',
                 width: 30,
                 height: 30,
                 objectFit: 'contain',
                 pointerEvents: 'none',
-                filter: isSelected ? 'none' : 'grayscale(0.3) opacity(0.8)',
+                filter: isSelected ? 'none' : 'grayscale(0.3) opacity(0.85)',
                 transition: 'filter 0.2s ease',
               }}
             />

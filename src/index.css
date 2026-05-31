@@ -1,3 +1,25 @@
+:root {
+  --app-bg-gradient: linear-gradient(180deg, rgba(224, 224, 224, 1) 0%, rgba(233, 233, 233, 1) 100%);
+  --app-bg-gradient-r: linear-gradient(180deg, #fafafa 0%, #B8E3FA 100%);
+  --noise-texture: url('/noise.png');
+}
+
+html {
+  background: #E9E9E9;
+}
+
+html::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  pointer-events: none;
+  background-image: var(--noise-texture);
+  background-repeat: repeat;
+  opacity: 0.12;
+  mix-blend-mode: multiply;
+}
+
 * {
   margin: 0;
   padding: 0;
@@ -10,6 +32,7 @@ html, body, #root {
   min-height: var(--app-height, 100dvh);
   max-height: var(--app-height, 100dvh);
   overflow: hidden;
+  background: #E9E9E9;
   /* 터치 드래그를 스크롤/줌으로 가로채지 않게(그리기 획 끊김 방지) */
   touch-action: none;
   overscroll-behavior: none;
@@ -23,6 +46,12 @@ html, body, #root {
   max-height: var(--app-height, 100dvh);
   overflow: hidden;
   position: relative;
+  background: #E9E9E9;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 20px 16px 40px;
+  box-sizing: border-box;
 }
 
 /* R3F 캔버스: 터치로 그리기/회전 시 브라우저 제스처 차단 */

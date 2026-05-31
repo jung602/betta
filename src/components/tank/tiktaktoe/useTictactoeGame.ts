@@ -10,16 +10,6 @@ export type GamePhase =
   | 'bettaMoving'
   | 'ended'
 
-export interface GameState {
-  phase: GamePhase
-  board: Board
-  gridLayout: GridLayout | null
-  winner: Cell
-  isDraw: boolean
-  bettaTargetCell: number | null
-  statusMessage: string
-}
-
 const EMPTY_BOARD: Board = ['', '', '', '', '', '', '', '', '']
 
 export function useTictactoeGame(

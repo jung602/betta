@@ -27,8 +27,8 @@ export default function TankSelector({ selected, onSelect, visible }: TankSelect
       selected={selected}
       onSelect={onSelect}
       visible={visible}
-      startAngle={100}
-      endAngle={10}
+      startAngle={140}
+      endAngle={40}
     />
   )
 }

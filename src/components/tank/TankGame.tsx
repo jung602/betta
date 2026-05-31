@@ -44,6 +44,8 @@ interface TankGameProps {
   mouseTarget: MutableRefObject<THREE.Vector3 | null>
   isHovered: MutableRefObject<boolean>
   fishPosRef: MutableRefObject<THREE.Vector3 | null>
+  /** 유리에 스트로크 그리는 중인지 알림(true=시작, false=끝). 그리는 동안 카메라 회전 막는 용도 */
+  onDrawingChange?: (drawing: boolean) => void
 }
 
 /**
@@ -64,6 +66,7 @@ export default function TankGame({
   mouseTarget,
   isHovered,
   fishPosRef,
+  onDrawingChange,
 }: TankGameProps) {
   const traceApiRef = useRef<TraceAPI | null>(null)
   const phaseRef = useRef(game.phase)
@@ -123,8 +126,9 @@ export default function TankGame({
   }, [])
 
   const handleStrokeStart = useCallback(() => {
+    onDrawingChange?.(true)
     liveStrokeRef.current = []
-  }, [])
+  }, [onDrawingChange])
 
   const handleStrokePoint = useCallback(
     (p: UVPoint) => {
@@ -142,6 +146,7 @@ export default function TankGame({
 
   const handleStrokeEnd = useCallback(
     (points: UVPoint[]) => {
+      onDrawingChange?.(false)
       liveStrokeRef.current = []
       const api = traceApiRef.current
       const layout = game.gridLayout
@@ -157,7 +162,7 @@ export default function TankGame({
         drawFullBoard(api, layout, game.board, { oStrokes: oStrokesRef.current })
       }
     },
-    [game],
+    [game, onDrawingChange],
   )
 
   // 격자 그리기 애니메이션
@@ -223,6 +228,7 @@ export default function TankGame({
       height={height}
       geometry={geometry}
       position={position}
+      bare
       paintMode={paintMode}
       onTraceReady={handleTraceReady}
       onStrokeStart={handleStrokeStart}

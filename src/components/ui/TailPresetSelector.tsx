@@ -34,8 +34,8 @@ export default function TailPresetSelector({ selected, onSelect, visible }: Tail
       selected={selected}
       onSelect={onSelect}
       visible={visible}
-      startAngle={210}
-      endAngle={50}
+      startAngle={160}
+      endAngle={20}
     />
   )
 }

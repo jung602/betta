@@ -1,17 +1,23 @@
 import { useState, useCallback, useMemo, useRef, useEffect } from 'react'
 import { Canvas, useFrame, useThree } from '@react-three/fiber'
-import { Environment, ContactShadows, OrbitControls, useGLTF, useVideoTexture } from '@react-three/drei'
+import { Environment, ContactShadows, OrbitControls, useVideoTexture } from '@react-three/drei'
 import * as THREE from 'three'
 import { FrostedGlassBox, type TankModelKey, type GlassFrontInfo } from './tank'
 import { useTictactoeGame } from './tank/tiktaktoe'
-import { TailPresetSelector, TankSelector } from './ui'
+import { Nav, GridBar, type GridBarPanel } from './ui'
 import type { TailPresetKey } from './fish'
 
-type AccordionTab = 'tail' | 'tank' | null
+const SCENE_SURFACE_BORDER = '1.5px solid rgba(158, 158, 158, 0.35)'
+const GLOSSY_BUTTON_SHADOW =
+  '1px 1px 0px 0px rgba(255, 255, 255, 1), -1px -1px 0px 0px rgba(0, 0, 0, 0.1)'
+const GLOSSY_SURFACE_RADIUS = 20
 
 const CAMERA_FOV = 35
-const INITIAL_CAM_POS = new THREE.Vector3(2, 1.5, 3)
+/** 평상시 기본 시점 (작을수록 줌인) */
+const INITIAL_CAM_POS = new THREE.Vector3(1.4, 1.04, 2.12)
 const ORIGIN = new THREE.Vector3(0, 0, 0)
+/** 게임 시 어항 프레이밍. 클수록 카메라가 멀어져 줌인이 덜함 */
+const GAME_FRAME_SCALE = 1.32
 
 /** 게임 중 OrbitControls 허용 범위 — 아주 살짝만 */
 const GAME_ORBIT_AZIMUTH = 0.05
@@ -70,7 +76,7 @@ function CameraRig({
     const aspect = size.width / Math.max(size.height, 1)
     const dH = glassFront.height / 2 / Math.tan(half)
     const dW = glassFront.width / 2 / (Math.tan(half) * aspect)
-    const dist = Math.max(dH, dW) * 1.15 + glassFront.frontZ
+    const dist = Math.max(dH, dW) * GAME_FRAME_SCALE + glassFront.frontZ
     return new THREE.Vector3(0, 0, dist)
   }, [glassFront, size.width, size.height])
 
@@ -140,28 +146,6 @@ function CameraRig({
   return null
 }
 
-const DEPO_PATH = `${import.meta.env.BASE_URL}3d/milkydepofish.glb`
-
-function DepoFish({ floorY, scale = 0.55, rotation = [0, Math.PI / 3.5, 0] }: { floorY: number; scale?: number; rotation?: [number, number, number] }) {
-  const { scene } = useGLTF(DEPO_PATH)
-  const cloned = useMemo(() => {
-    const c = scene.clone(true)
-    c.updateMatrixWorld(true)
-    const box = new THREE.Box3().setFromObject(c)
-    const offsetY = -box.min.y
-    c.position.y = offsetY
-    return c
-  }, [scene])
-
-  return (
-    <group position={[-0.5, -0.5, -0]} scale={scale} rotation={rotation}>
-      <primitive object={cloned} />
-    </group>
-  )
-}
-
-useGLTF.preload(DEPO_PATH)
-
 const floorMat = new THREE.ShaderMaterial({
   vertexShader: /* glsl */ `
     varying vec2 vUv;
@@ -202,7 +186,7 @@ function FloorPlane({ y }: { y: number }) {
 
   const video = texture.image as HTMLVideoElement | undefined
   const aspect = video ? video.videoWidth / video.videoHeight : 1
-  const height = 7
+  const height = 2
 
   const mat = useMemo(() => {
     const m = floorMat.clone()
@@ -222,10 +206,8 @@ export default function Scene() {
   const [tankModel, setTankModel] = useState<TankModelKey>('round')
   const [floorY, setFloorY] = useState(-0.2)
   const [normalScale] = useState(20)
-  const [openTab, setOpenTab] = useState<AccordionTab>(null)
-  const [showMilky] = useState(false)
-
   const [gameActive, setGameActive] = useState(false)
+  const [openPanel, setOpenPanel] = useState<GridBarPanel>(null)
   const [glassFront, setGlassFront] = useState<GlassFrontInfo | null>(null)
 
   const controlsRef = useRef<OrbitControlsRef>(null)
@@ -245,8 +227,15 @@ export default function Scene() {
 
   const handleGlassFront = useCallback((info: GlassFrontInfo) => setGlassFront(info), [])
 
+  // 유리에 그리는 동안엔 카메라 회전 잠금(드래그가 회전 대신 그리기만 하도록). 빈 공간 드래그·줌은 유지.
+  const handleDrawingChange = useCallback((drawing: boolean) => {
+    const c = controlsRef.current
+    if (c) c.enableRotate = !drawing
+  }, [])
+
   const handleStartGame = useCallback(() => {
     if (!glassFront) return
+    setOpenPanel(null)
     setGameActive(true)
   }, [glassFront])
 
@@ -255,28 +244,28 @@ export default function Scene() {
     if (game.phase === 'idle') game.startGame()
   }, [game])
 
-  const handleRestart = useCallback(() => {
-    game.startGame()
-  }, [game])
-
   const handleEndGame = useCallback(() => {
     game.resetToIdle()
     setGameActive(false)
+    setOpenPanel(null)
   }, [game])
 
-  const toggleTab = useCallback((tab: AccordionTab) => {
-    setOpenTab(prev => prev === tab ? null : tab)
+  const togglePanel = useCallback((panel: 'tank' | 'fish') => {
+    setOpenPanel(prev => (prev === panel ? null : panel))
+  }, [])
+
+  const handleTankSelect = useCallback((key: TankModelKey) => {
+    setTankModel(key)
+  }, [])
+
+  const handleTailSelect = useCallback((key: TailPresetKey) => {
+    setTailPreset(key)
   }, [])
 
   return (
-    <div
-      className="app-shell"
-      style={{
-        background: 'linear-gradient(180deg, #eaf2ff 0%, #f0f6ff 50%, #ffffff 100%)',
-      }}
-    >
+    <div className="app-shell">
       <Canvas
-        camera={{ position: [2, 1.5, 3], fov: 35 }}
+        camera={{ position: [1.4, 1.04, 2.12], fov: 35 }}
         gl={{
           antialias: true,
           alpha: true,
@@ -284,7 +273,15 @@ export default function Scene() {
           toneMappingExposure: 1.4,
         }}
         shadows
-        style={{ position: 'relative', zIndex: 1 }}
+        style={{
+          flex: 1,
+          minHeight: 0,
+          width: '100%',
+          border: SCENE_SURFACE_BORDER,
+          borderRadius: GLOSSY_SURFACE_RADIUS,
+          overflow: 'hidden',
+          boxShadow: GLOSSY_BUTTON_SHADOW,
+        }}
       >
         <color attach="background" args={['#f0f5ff']} />
         <fog attach="fog" args={['#f0f5ff', 6, 14]} />
@@ -302,31 +299,29 @@ export default function Scene() {
           <spotLight
             angle={1}
             penumbra={1}
-            intensity={0.1}
-            color="#b8e4ff"
+            intensity={0.3}
+            color="#0086E8"
             distance={5}
-            decay={5}
+            decay={3}
             castShadow
           >
           </spotLight>
         </group>
 
-        <group position={showMilky ? [0.5, 0, 0] : [0, 0, 0]}>
-          <FrostedGlassBox
-            key={tankModel}
-            tailPreset={tailPreset}
-            tankModel={tankModel}
-            onFloorY={handleFloorY}
-            normalScale={normalScale}
-            gameMode={gameActive}
-            game={game}
-            mouseTargetRef={mouseTargetRef}
-            isHoveredRef={isHoveredRef}
-            fishPosRef={fishPosRef}
-            onGlassFront={handleGlassFront}
-          />
-        </group>
-        {showMilky && <DepoFish floorY={floorY} />}
+        <FrostedGlassBox
+          key={tankModel}
+          tailPreset={tailPreset}
+          tankModel={tankModel}
+          onFloorY={handleFloorY}
+          normalScale={normalScale}
+          gameMode={gameActive}
+          game={game}
+          mouseTargetRef={mouseTargetRef}
+          isHoveredRef={isHoveredRef}
+          fishPosRef={fishPosRef}
+          onGlassFront={handleGlassFront}
+          onDrawingChange={handleDrawingChange}
+        />
         <FloorPlane y={floorY} />
 
         <ContactShadows
@@ -366,236 +361,26 @@ export default function Scene() {
         />
       </Canvas>
 
-      {/* Milky 버튼 임시 숨김
-      <div style={{
-        position: 'absolute',
-        top: 24,
-        left: '50%',
-        transform: 'translateX(-50%)',
-        zIndex: 2,
-      }}>
-        <button
-          onClick={() => setShowMilky(prev => !prev)}
-          style={{
-            padding: '8px 20px',
-            fontSize: 13,
-            fontFamily: '-apple-system, BlinkMacSystemFont, "Apple SD Gothic Neo", system-ui, sans-serif',
-            fontWeight: 500,
-            background: showMilky ? 'rgba(255,255,255,0.85)' : 'rgba(255,255,255,0.5)',
-            color: '#333',
-            border: showMilky ? '1.5px solid rgba(100,160,255,0.6)' : '1.5px solid rgba(0,0,0,0.1)',
-            borderRadius: 20,
-            cursor: 'pointer',
-            backdropFilter: 'blur(12px)',
-            WebkitBackdropFilter: 'blur(12px)',
-            transition: 'all 0.25s ease',
-            boxShadow: showMilky ? '0 2px 12px rgba(100,160,255,0.25)' : '0 2px 8px rgba(0,0,0,0.06)',
-          }}
-        >
-          {showMilky ? 'Milky ON' : 'Milky OFF'}
-        </button>
-      </div>
-      */}
+      <GridBar
+        openPanel={openPanel}
+        gameActive={gameActive}
+        gamePhase={game.phase}
+        winner={game.winner}
+        isDraw={game.isDraw}
+        tankModel={tankModel}
+        tailPreset={tailPreset}
+        onTankSelect={handleTankSelect}
+        onTailSelect={handleTailSelect}
+      />
 
-      {!gameActive && (
-      <div style={{
-        position: 'absolute',
-        bottom: 32,
-        left: '50%',
-        transform: 'translateX(-50%)',
-        display: 'flex',
-        gap: 8,
-        zIndex: 2,
-      }}>
-        {([
-          { key: 'tail' as const, icon: `${import.meta.env.BASE_URL}icon/fish.png`, label: 'FISH' },
-          { key: 'tank' as const, icon: `${import.meta.env.BASE_URL}icon/tank.png`, label: 'TANK' },
-        ]).map(({ key, icon, label }) => (
-          <div key={key} style={{ position: 'relative', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4 }}>
-            <div style={{ position: 'absolute', left: 40, top: 40 }}>
-              {key === 'tail' && (
-                <TailPresetSelector selected={tailPreset} onSelect={setTailPreset} visible={openTab === 'tail'} />
-              )}
-              {key === 'tank' && (
-                <TankSelector selected={tankModel} onSelect={setTankModel} visible={openTab === 'tank'} />
-              )}
-            </div>
-
-            <button
-              onClick={() => toggleTab(key)}
-              style={{
-                position: 'relative',
-                width: 80,
-                height: 80,
-                padding: 0,
-                background: 'transparent',
-                border: 'none',
-                borderRadius: '50%',
-                cursor: 'pointer',
-                backdropFilter: 'blur(20px) saturate(180%)',
-                WebkitBackdropFilter: 'blur(20px) saturate(180%)',
-                transition: 'all 0.2s ease',
-                overflow: 'hidden',
-                zIndex: 1,
-              }}
-            >
-              <img
-                src={`${import.meta.env.BASE_URL}icon/button.png`}
-                alt=""
-                style={{
-                  position: 'absolute',
-                  top: 0,
-                  left: 0,
-                  width: '100%',
-                  height: '100%',
-                  objectFit: 'cover',
-                  borderRadius: '50%',
-                  pointerEvents: 'none',
-                  opacity: openTab === key ? 0.9 : 0.7,
-                  transition: 'opacity 0.2s ease',
-                }}
-              />
-              <img
-                src={icon}
-                alt=""
-                style={{
-                  position: 'relative',
-                  zIndex: 1,
-                  top: 2,
-                  width: 42,
-                  height: 42,
-                  objectFit: 'contain',
-                  pointerEvents: 'none',
-                  filter: openTab === key ? 'none' : 'grayscale(0.3) opacity(1)',
-                  transition: 'filter 0.2s ease',
-                }}
-              />
-            </button>
-            <span style={{
-              fontSize: 10,
-              fontFamily: '-apple-system, BlinkMacSystemFont, "Apple SD Gothic Neo", system-ui, sans-serif',
-              fontWeight: openTab === key ? 600 : 400,
-              color: openTab === key ? '#333' : '#888',
-              letterSpacing: '0.5px',
-              transition: 'all 0.2s ease',
-            }}>
-              {label}
-            </span>
-          </div>
-        ))}
-      </div>
-      )}
-
-      {!gameActive && (
-        <div style={{
-          position: 'absolute',
-          top: 24,
-          left: '50%',
-          transform: 'translateX(-50%)',
-          zIndex: 2,
-        }}>
-          <button
-            type="button"
-            onClick={handleStartGame}
-            disabled={!glassFront}
-            style={{
-              padding: '10px 24px',
-              fontSize: 14,
-              fontFamily: '-apple-system, BlinkMacSystemFont, "Apple SD Gothic Neo", system-ui, sans-serif',
-              fontWeight: 600,
-              background: 'rgba(255,255,255,0.75)',
-              color: '#223',
-              border: '1.5px solid rgba(100,160,255,0.45)',
-              borderRadius: 24,
-              cursor: glassFront ? 'pointer' : 'not-allowed',
-              opacity: glassFront ? 1 : 0.5,
-              backdropFilter: 'blur(16px)',
-              WebkitBackdropFilter: 'blur(16px)',
-              boxShadow: '0 4px 16px rgba(100,160,255,0.2)',
-            }}
-          >
-            베타랑 게임하기
-          </button>
-        </div>
-      )}
-
-      {gameActive && (
-        <div style={{
-          position: 'absolute',
-          inset: 0,
-          pointerEvents: 'none',
-          zIndex: 2,
-          display: 'flex',
-          flexDirection: 'column',
-          alignItems: 'center',
-          justifyContent: 'flex-end',
-          paddingBottom: 40,
-          gap: 12,
-        }}>
-          <p style={{
-            margin: 0,
-            padding: '10px 20px',
-            borderRadius: 20,
-            background: 'rgba(255,255,255,0.55)',
-            backdropFilter: 'blur(12px)',
-            WebkitBackdropFilter: 'blur(12px)',
-            fontFamily: '-apple-system, BlinkMacSystemFont, "Apple SD Gothic Neo", system-ui, sans-serif',
-            fontSize: 14,
-            fontWeight: 500,
-            color: '#334',
-            boxShadow: '0 2px 12px rgba(100,160,255,0.15)',
-          }}>
-            {game.statusMessage}
-          </p>
-
-          <div style={{ display: 'flex', gap: 8 }}>
-            {game.phase === 'ended' && (
-              <button
-                type="button"
-                onClick={handleRestart}
-                style={{
-                  pointerEvents: 'auto',
-                  padding: '10px 22px',
-                  fontSize: 14,
-                  fontFamily: '-apple-system, BlinkMacSystemFont, "Apple SD Gothic Neo", system-ui, sans-serif',
-                  fontWeight: 600,
-                  background: 'rgba(255,255,255,0.75)',
-                  color: '#223',
-                  border: '1.5px solid rgba(100,160,255,0.45)',
-                  borderRadius: 24,
-                  cursor: 'pointer',
-                  backdropFilter: 'blur(16px)',
-                  WebkitBackdropFilter: 'blur(16px)',
-                  boxShadow: '0 4px 16px rgba(100,160,255,0.2)',
-                }}
-              >
-                다시하기
-              </button>
-            )}
-            <button
-              type="button"
-              onClick={handleEndGame}
-              style={{
-                pointerEvents: 'auto',
-                padding: '10px 22px',
-                fontSize: 14,
-                fontFamily: '-apple-system, BlinkMacSystemFont, "Apple SD Gothic Neo", system-ui, sans-serif',
-                fontWeight: 600,
-                background: 'rgba(255,255,255,0.6)',
-                color: '#445',
-                border: '1.5px solid rgba(0,0,0,0.1)',
-                borderRadius: 24,
-                cursor: 'pointer',
-                backdropFilter: 'blur(16px)',
-                WebkitBackdropFilter: 'blur(16px)',
-                boxShadow: '0 4px 16px rgba(0,0,0,0.08)',
-              }}
-            >
-              끝내기
-            </button>
-          </div>
-        </div>
-      )}
+      <Nav
+        gameActive={gameActive}
+        openPanel={openPanel}
+        onTogglePanel={togglePanel}
+        canStartGame={!!glassFront}
+        onStartGame={handleStartGame}
+        onEndGame={handleEndGame}
+      />
     </div>
   )
 }

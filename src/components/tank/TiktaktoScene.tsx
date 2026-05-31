@@ -307,12 +307,7 @@ export default function TiktaktoScene() {
   const game = useTictactoeGame(glass.width, glass.height, FISH_VISUAL_SCALE)
 
   return (
-    <div
-      className="app-shell"
-      style={{
-        background: SCENE_BG,
-      }}
-    >
+    <div className="app-shell">
       <Canvas
         camera={{ position: [0, 0, BASE_CAMERA_DISTANCE], fov: FOV, near: 0.01, far: 50 }}
         resize={{ scroll: false, debounce: { scroll: 0, resize: 0 } }}

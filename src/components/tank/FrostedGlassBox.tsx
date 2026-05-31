@@ -48,6 +48,8 @@ interface FrostedGlassBoxProps {
   isHoveredRef?: MutableRefObject<boolean>
   fishPosRef?: MutableRefObject<THREE.Vector3 | null>
   onGlassFront?: (info: GlassFrontInfo) => void
+  /** 게임 중 유리에 스트로크 그리는 중인지 알림(카메라 회전 잠금용) */
+  onDrawingChange?: (drawing: boolean) => void
 }
 
 export default function FrostedGlassBox({
@@ -61,6 +63,7 @@ export default function FrostedGlassBox({
   isHoveredRef,
   fishPosRef,
   onGlassFront,
+  onDrawingChange,
 }: FrostedGlassBoxProps) {
   const groupRef = useRef<THREE.Group>(null)
   const waterRef = useRef<THREE.Mesh>(null)
@@ -273,9 +276,9 @@ export default function FrostedGlassBox({
           <MeshTransmissionMaterial
             map={gradientMap}
             color="#fafafa"
-            roughness={0.2}
+            roughness={0.3}
             transmission={1}
-            thickness={0.1}
+            thickness={0.07}
             chromaticAberration={0.01}
             anisotropy={0.1}
             distortion={0.02}
@@ -305,7 +308,7 @@ export default function FrostedGlassBox({
           <meshPhysicalMaterial
             color="#d4eaff"
             transparent
-            opacity={0.}
+            opacity={0.1}
             roughness={0.2}
             metalness={0.05}
             envMapIntensity={1}
@@ -334,6 +337,7 @@ export default function FrostedGlassBox({
           mouseTarget={mouseTarget}
           isHovered={isHovered}
           fishPosRef={fishPosRef ?? internalFishPos}
+          onDrawingChange={onDrawingChange}
         />
       )}
     </group>
