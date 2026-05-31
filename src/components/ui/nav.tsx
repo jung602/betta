@@ -16,11 +16,11 @@ interface NavProps {
   onEndGame: () => void
 }
 
-const SIDE_SLOT_WIDTH = 80
+const SIDE_SLOT_WIDTH = 64
 /** 가운데 글로시 원형 버튼 크기 */
-const NAV_BUTTON_SIZE = 80
+const NAV_BUTTON_SIZE = 64
 /** PLAY 버튼 폭 */
-const PLAY_WIDTH = 220
+const PLAY_WIDTH = 200
 
 const GLOSSY_BLUE = glossyStyles('blue')
 
@@ -119,8 +119,8 @@ function SideButton({
             top: '50%',
             left: '50%',
             transform: 'translate(-50%, -50%)',
-            width: 42,
-            height: 42,
+            width: 32,
+            height: 32,
             objectFit: 'contain',
             pointerEvents: 'none',
           }}
@@ -150,7 +150,7 @@ function PlayButton({
         position: 'relative',
         width: PLAY_WIDTH,
         maxWidth: '46vw',
-        height: 80,
+        height: SIDE_SLOT_WIDTH,
         flexShrink: 0,
         padding: '12px 24px',
         background: GLOSSY_BLUE.bg,
@@ -172,7 +172,7 @@ function PlayButton({
           top: '50%',
           left: '50%',
           transform: 'translate(-50%, -50%)',
-          fontSize: 20,
+          fontSize: 16,
           fontFamily: FONT,
           fontWeight: 600,
           color: '#fff',

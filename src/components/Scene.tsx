@@ -3,6 +3,7 @@ import { Canvas, useFrame, useThree } from '@react-three/fiber'
 import { Environment, ContactShadows, OrbitControls, useVideoTexture } from '@react-three/drei'
 import * as THREE from 'three'
 import { FrostedGlassBox, type TankModelKey, type GlassFrontInfo } from './tank'
+import type { GameSurfaceApi } from './tank/TankGame'
 import { useTictactoeGame } from './tank/tiktaktoe'
 import { Nav, GridBar, type GridBarPanel } from './ui'
 import type { TailPresetKey } from './fish'
@@ -214,6 +215,7 @@ export default function Scene() {
   const mouseTargetRef = useRef<THREE.Vector3 | null>(null)
   const isHoveredRef = useRef(false)
   const fishPosRef = useRef<THREE.Vector3 | null>(null)
+  const gameSurfaceRef = useRef<GameSurfaceApi | null>(null)
 
   const game = useTictactoeGame(
     glassFront?.width ?? 0,
@@ -274,6 +276,7 @@ export default function Scene() {
         }}
         shadows
         style={{
+          // 게임 중엔 GridBar가 자라며 이 캔버스를 자연스럽게 절반으로 밀어냄
           flex: 1,
           minHeight: 0,
           width: '100%',
@@ -321,6 +324,7 @@ export default function Scene() {
           fishPosRef={fishPosRef}
           onGlassFront={handleGlassFront}
           onDrawingChange={handleDrawingChange}
+          gameSurfaceRef={gameSurfaceRef}
         />
         <FloorPlane y={floorY} />
 
@@ -371,6 +375,7 @@ export default function Scene() {
         tailPreset={tailPreset}
         onTankSelect={handleTankSelect}
         onTailSelect={handleTailSelect}
+        gameSurfaceRef={gameSurfaceRef}
       />
 
       <Nav

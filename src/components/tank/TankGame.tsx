@@ -14,7 +14,31 @@ import {
   type OStrokeMap,
 } from './tiktaktoe'
 import { drawOStroke, type UVPoint } from './frostedGlassPaint'
+import { boardLocalToCanvas, type GridLayout } from './tiktaktoe/gridLayout'
 import type { Bounds } from '../types'
+
+/** 보드(격자) 전체가 차지하는 트레이스 캔버스 픽셀 사각형(회전 포함 bbox + 여백) */
+function boardCanvasRect(layout: GridLayout | null) {
+  if (!layout) return null
+  const { halfX, halfY } = layout
+  const corners: [number, number][] = [
+    [-halfX, -halfY],
+    [halfX, -halfY],
+    [halfX, halfY],
+    [-halfX, halfY],
+  ]
+  let minx = Infinity, miny = Infinity, maxx = -Infinity, maxy = -Infinity
+  for (const [lx, ly] of corners) {
+    const p = boardLocalToCanvas(layout, lx, ly)
+    if (p.x < minx) minx = p.x
+    if (p.x > maxx) maxx = p.x
+    if (p.y < miny) miny = p.y
+    if (p.y > maxy) maxy = p.y
+  }
+  const padX = (maxx - minx) * 0.08
+  const padY = (maxy - miny) * 0.08
+  return { x: minx - padX, y: miny - padY, w: maxx - minx + 2 * padX, h: maxy - miny + 2 * padY }
+}
 
 const BETTA_ARRIVE_DIST = 0.06
 const BETTA_PAUSE_BEFORE_X_MS = 200
@@ -26,6 +50,17 @@ const BETTA_LATERAL_MARGIN = 0.01
 const BETTA_FRONT_MARGIN = 0.08
 
 type Game = ReturnType<typeof useTictactoeGame>
+
+/** 외부(격자 패널)에서 트레이스 미러링 + 그리기를 할 수 있게 노출하는 핸들 */
+export interface GameSurfaceApi {
+  /** 격자/O/X가 그려지는 1024² 트레이스 캔버스(미러 소스) */
+  traceCanvas: HTMLCanvasElement
+  /** 보드 영역의 트레이스 캔버스 픽셀 사각형(패널 가운데 정렬용). 없으면 null */
+  getBoardRect: () => { x: number; y: number; w: number; h: number } | null
+  beginStroke: () => void
+  addPoint: (p: UVPoint) => void
+  endStroke: (points: UVPoint[]) => void
+}
 
 interface TankGameProps {
   game: Game
@@ -46,6 +81,8 @@ interface TankGameProps {
   fishPosRef: MutableRefObject<THREE.Vector3 | null>
   /** 유리에 스트로크 그리는 중인지 알림(true=시작, false=끝). 그리는 동안 카메라 회전 막는 용도 */
   onDrawingChange?: (drawing: boolean) => void
+  /** 격자 패널이 트레이스 미러링/그리기를 할 수 있게 핸들을 받는 ref */
+  gameSurfaceRef?: MutableRefObject<GameSurfaceApi | null>
 }
 
 /**
@@ -67,6 +104,7 @@ export default function TankGame({
   isHovered,
   fishPosRef,
   onDrawingChange,
+  gameSurfaceRef,
 }: TankGameProps) {
   const traceApiRef = useRef<TraceAPI | null>(null)
   const phaseRef = useRef(game.phase)
@@ -121,9 +159,35 @@ export default function TankGame({
     [game.gridLayout, geometry],
   )
 
-  const handleTraceReady = useCallback((api: TraceAPI) => {
-    traceApiRef.current = api
-  }, [])
+  // 스트로크 핸들러는 매 렌더 최신값으로 ref에 보관(클로저가 최신 game 상태를 보도록)
+  const handlersRef = useRef<{
+    start: () => void
+    point: (p: UVPoint) => void
+    end: (pts: UVPoint[]) => void
+    rect: () => { x: number; y: number; w: number; h: number } | null
+  } | null>(null)
+
+  const handleTraceReady = useCallback(
+    (api: TraceAPI) => {
+      traceApiRef.current = api
+      if (gameSurfaceRef) {
+        gameSurfaceRef.current = {
+          traceCanvas: api.traceCtx.canvas,
+          getBoardRect: () => handlersRef.current?.rect() ?? null,
+          beginStroke: () => handlersRef.current?.start(),
+          addPoint: (p) => handlersRef.current?.point(p),
+          endStroke: (pts) => handlersRef.current?.end(pts),
+        }
+      }
+    },
+    [gameSurfaceRef],
+  )
+
+  useEffect(() => {
+    return () => {
+      if (gameSurfaceRef) gameSurfaceRef.current = null
+    }
+  }, [gameSurfaceRef])
 
   const handleStrokeStart = useCallback(() => {
     onDrawingChange?.(true)
@@ -164,6 +228,13 @@ export default function TankGame({
     },
     [game, onDrawingChange],
   )
+
+  handlersRef.current = {
+    start: handleStrokeStart,
+    point: handleStrokePoint,
+    end: handleStrokeEnd,
+    rect: () => boardCanvasRect(game.gridLayout),
+  }
 
   // 격자 그리기 애니메이션
   useEffect(() => {

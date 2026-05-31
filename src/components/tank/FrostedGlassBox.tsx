@@ -7,7 +7,7 @@ import { BettaFish, type TailPresetKey } from '../fish'
 import Bubbles from '../effects/Bubbles'
 import type { FoodPellet, Bounds } from '../types'
 import { useGradientTexture, useRemapUVsByY, remapPlanarUVs } from '../hooks'
-import TankGame from './TankGame'
+import TankGame, { type GameSurfaceApi } from './TankGame'
 import type { useTictactoeGame } from './tiktaktoe'
 
 type Game = ReturnType<typeof useTictactoeGame>
@@ -50,6 +50,8 @@ interface FrostedGlassBoxProps {
   onGlassFront?: (info: GlassFrontInfo) => void
   /** 게임 중 유리에 스트로크 그리는 중인지 알림(카메라 회전 잠금용) */
   onDrawingChange?: (drawing: boolean) => void
+  /** 격자 패널 미러링/그리기용 핸들 ref */
+  gameSurfaceRef?: MutableRefObject<GameSurfaceApi | null>
 }
 
 export default function FrostedGlassBox({
@@ -64,6 +66,7 @@ export default function FrostedGlassBox({
   fishPosRef,
   onGlassFront,
   onDrawingChange,
+  gameSurfaceRef,
 }: FrostedGlassBoxProps) {
   const groupRef = useRef<THREE.Group>(null)
   const waterRef = useRef<THREE.Mesh>(null)
@@ -338,6 +341,7 @@ export default function FrostedGlassBox({
           isHovered={isHovered}
           fishPosRef={fishPosRef ?? internalFishPos}
           onDrawingChange={onDrawingChange}
+          gameSurfaceRef={gameSurfaceRef}
         />
       )}
     </group>
