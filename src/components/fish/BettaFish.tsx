@@ -13,6 +13,7 @@ import {
   MAX_SPEED, MIN_SPEED, WALL_MARGIN, WALL_STRENGTH,
   ARRIVE_MAX_SPEED, ARRIVE_MAX_FORCE, ARRIVE_RADIUS,
   MAX_HEADING_DELTA, MAX_ANG_VEL,
+  DEPTH_PREF_FACTOR, DEPTH_BIAS_STRENGTH, PITCH_FLATTEN,
   WAVE_AMP, WAVE_SPEED, WAVE_K, BODY_WAVE_AMP,
   BODY_RADIUS_X, BODY_RADIUS_Y, BODY_RADIUS_Z,
   BODY_CENTER_X, BODY_CENTER_Y,
@@ -21,7 +22,7 @@ import {
   ANAL_FIN, ANAL_X, ANAL_Y,
   TAIL_X, TAIL_Y,
   _acc, _desired, _steer, _wall, _tmp,
-  _lookMat, _up, _origin, _targetQuat,
+  _lookDir, _lookMat, _up, _origin, _targetQuat,
   _lerpColor,
 } from './constants'
 
@@ -264,6 +265,16 @@ export default function BettaFish({ mouseTarget, isHovered, bounds, tailPreset, 
       _acc.z += Math.sin(t * 0.55 + 1.2) * 0.001 + Math.sin(t * 0.95 + 2.5) * 0.00075
     }
 
+    // 바닥 쪽으로는 잘 안 내려가도록 위로 살짝 밀어 올림
+    {
+      const preferredY = bounds.y * DEPTH_PREF_FACTOR
+      if (pos.current.y < preferredY) {
+        const range = preferredY + bounds.y // 선호선~바닥 거리
+        const below = range > 0 ? (preferredY - pos.current.y) / range : 0 // 0(선호선)~1(바닥)
+        _acc.y += DEPTH_BIAS_STRENGTH * below * below
+      }
+    }
+
     _wall.set(0, 0, 0)
     const px = pos.current.x, py = pos.current.y, pz = pos.current.z
 
@@ -334,7 +345,10 @@ export default function BettaFish({ mouseTarget, isHovered, bounds, tailPreset, 
     fishOriginRef.current.position.copy(pos.current)
     if (positionRef) positionRef.current = pos.current
     if (vel.current.length() > 0.01) {
-      _lookMat.lookAt(vel.current, _origin, _up)
+      // 수직 성분을 눌러 몸이 위/아래로 덜 기울고 평행하게 헤엄치도록
+      _lookDir.copy(vel.current)
+      _lookDir.y *= PITCH_FLATTEN
+      _lookMat.lookAt(_lookDir, _origin, _up)
       _targetQuat.setFromRotationMatrix(_lookMat)
       fishOriginRef.current.quaternion.slerp(_targetQuat, Math.min(dt * 6, 1))
     }
