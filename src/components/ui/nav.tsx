@@ -52,7 +52,7 @@ function CurvedCircleLabel({ label }: { label: string }) {
       </defs>
       <text
         fill="#fff"
-        fontSize={7.5}
+        fontSize={10}
         fontFamily={FONT}
         fontWeight={600}
         letterSpacing="1.4px"

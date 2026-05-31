@@ -59,15 +59,15 @@ const OPTION_SIZE = 46
 function gameBarMessage(phase: GamePhase, winner: Cell, isDraw: boolean): string | null {
   switch (phase) {
     case 'animating':
-      return '격자그리는중'
+      return 'DRAWING GRID...'
     case 'userTurn':
-      return '내차례'
+      return 'YOUR TURN'
     case 'bettaMoving':
-      return '물고기차례'
+      return "BETTA'S TURN"
     case 'ended':
-      if (isDraw) return '무승부'
-      if (winner === 'O') return '나우승'
-      if (winner === 'X') return '물고기우승'
+      if (isDraw) return 'DRAW'
+      if (winner === 'O') return 'YOU WIN'
+      if (winner === 'X') return 'FISH WINS'
       return null
     default:
       return null
