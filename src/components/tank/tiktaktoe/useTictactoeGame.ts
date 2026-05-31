@@ -22,7 +22,13 @@ export interface GameState {
 
 const EMPTY_BOARD: Board = ['', '', '', '', '', '', '', '', '']
 
-export function useTictactoeGame(planeWidth: number, planeHeight: number, fishVisualScale: number) {
+export function useTictactoeGame(
+  planeWidth: number,
+  planeHeight: number,
+  fishVisualScale: number,
+  reachX = 0,
+  reachY = 0,
+) {
   const [phase, setPhase] = useState<GamePhase>('idle')
   const [board, setBoard] = useState<Board>([...EMPTY_BOARD])
   const [gridLayout, setGridLayout] = useState<GridLayout | null>(null)
@@ -56,14 +62,19 @@ export function useTictactoeGame(planeWidth: number, planeHeight: number, fishVi
 
   const startGame = useCallback(() => {
     if (planeWidth <= 0 || planeHeight <= 0) return
-    const layout = createRandomGridLayout(planeWidth, planeHeight, fishVisualScale)
+    const layout = createRandomGridLayout(
+      planeWidth,
+      planeHeight,
+      fishVisualScale,
+      reachX > 0 && reachY > 0 ? { x: reachX, y: reachY } : undefined,
+    )
     setBoard([...EMPTY_BOARD])
     setWinner('')
     setIsDraw(false)
     setBettaTargetCell(null)
     setGridLayout(layout)
     setPhase('animating')
-  }, [planeWidth, planeHeight, fishVisualScale])
+  }, [planeWidth, planeHeight, fishVisualScale, reachX, reachY])
 
   const onGridAnimationComplete = useCallback(() => {
     setPhase('userTurn')

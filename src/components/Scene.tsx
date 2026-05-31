@@ -1,12 +1,76 @@
-import { useState, useCallback, useMemo } from 'react'
-import { Canvas } from '@react-three/fiber'
+import { useState, useCallback, useMemo, useRef, useEffect } from 'react'
+import { Canvas, useFrame, useThree } from '@react-three/fiber'
 import { Environment, ContactShadows, OrbitControls, useGLTF, useVideoTexture } from '@react-three/drei'
 import * as THREE from 'three'
-import { FrostedGlassBox, type TankModelKey } from './tank'
+import { FrostedGlassBox, type TankModelKey, type GlassFrontInfo } from './tank'
+import { useTictactoeGame } from './tank/tiktaktoe'
 import { TailPresetSelector, TankSelector } from './ui'
 import type { TailPresetKey } from './fish'
 
 type AccordionTab = 'tail' | 'tank' | null
+
+const CAMERA_FOV = 35
+const INITIAL_CAM_POS = new THREE.Vector3(2, 1.5, 3)
+const ORIGIN = new THREE.Vector3(0, 0, 0)
+
+type OrbitControlsRef = React.ComponentRef<typeof OrbitControls>
+
+/** 게임 진입 시 어항 정면으로 줌인·잠금, 종료 시 원위치 복귀시키는 카메라 리그 */
+function CameraRig({
+  active,
+  glassFront,
+  controlsRef,
+  onArrive,
+}: {
+  active: boolean
+  glassFront: GlassFrontInfo | null
+  controlsRef: React.RefObject<OrbitControlsRef | null>
+  onArrive: () => void
+}) {
+  const { camera, size } = useThree()
+  const arrivedRef = useRef(false)
+
+  const desired = useMemo(() => {
+    if (!active || !glassFront) return INITIAL_CAM_POS.clone()
+    const half = (CAMERA_FOV * Math.PI) / 360
+    const aspect = size.width / Math.max(size.height, 1)
+    const dH = glassFront.height / 2 / Math.tan(half)
+    const dW = glassFront.width / 2 / (Math.tan(half) * aspect)
+    const dist = Math.max(dH, dW) * 1.15 + glassFront.frontZ
+    return new THREE.Vector3(0, 0, dist)
+  }, [active, glassFront, size.width, size.height])
+
+  useEffect(() => {
+    arrivedRef.current = false
+    const controls = controlsRef.current
+    if (controls && active) {
+      controls.autoRotate = false
+      controls.enabled = false
+    }
+  }, [active, controlsRef])
+
+  useFrame(() => {
+    const controls = controlsRef.current
+    camera.position.lerp(desired, 0.08)
+    if (controls) {
+      controls.target.lerp(ORIGIN, 0.08)
+      controls.update()
+    } else {
+      camera.lookAt(ORIGIN)
+    }
+    const d = camera.position.distanceTo(desired)
+    if (active && !arrivedRef.current && d < 0.02) {
+      arrivedRef.current = true
+      onArrive()
+    }
+    if (!active && controls && d < 0.02 && !controls.enabled) {
+      controls.enabled = true
+      controls.autoRotate = true
+    }
+  })
+
+  return null
+}
 
 const DEPO_PATH = `${import.meta.env.BASE_URL}milkydepofish.glb`
 
@@ -93,7 +157,44 @@ export default function Scene() {
   const [openTab, setOpenTab] = useState<AccordionTab>(null)
   const [showMilky] = useState(false)
 
+  const [gameActive, setGameActive] = useState(false)
+  const [glassFront, setGlassFront] = useState<GlassFrontInfo | null>(null)
+
+  const controlsRef = useRef<OrbitControlsRef>(null)
+  const mouseTargetRef = useRef<THREE.Vector3 | null>(null)
+  const isHoveredRef = useRef(false)
+  const fishPosRef = useRef<THREE.Vector3 | null>(null)
+
+  const game = useTictactoeGame(
+    glassFront?.width ?? 0,
+    glassFront?.height ?? 0,
+    1,
+    glassFront?.reachX ?? 0,
+    glassFront?.reachY ?? 0,
+  )
+
   const handleFloorY = useCallback((y: number) => setFloorY(y), [])
+
+  const handleGlassFront = useCallback((info: GlassFrontInfo) => setGlassFront(info), [])
+
+  const handleStartGame = useCallback(() => {
+    if (!glassFront) return
+    setGameActive(true)
+  }, [glassFront])
+
+  // 카메라 줌인 완료 시 게임 시작
+  const handleArrive = useCallback(() => {
+    if (game.phase === 'idle') game.startGame()
+  }, [game])
+
+  const handleRestart = useCallback(() => {
+    game.startGame()
+  }, [game])
+
+  const handleEndGame = useCallback(() => {
+    game.resetToIdle()
+    setGameActive(false)
+  }, [game])
 
   const toggleTab = useCallback((tab: AccordionTab) => {
     setOpenTab(prev => prev === tab ? null : tab)
@@ -136,7 +237,19 @@ export default function Scene() {
         <pointLight position={[-2, 1, 1]} intensity={0.4} color="#b0d4ff" />
 
         <group position={showMilky ? [0.5, 0, 0] : [0, 0, 0]}>
-          <FrostedGlassBox key={tankModel} tailPreset={tailPreset} tankModel={tankModel} onFloorY={handleFloorY} normalScale={normalScale} />
+          <FrostedGlassBox
+            key={tankModel}
+            tailPreset={tailPreset}
+            tankModel={tankModel}
+            onFloorY={handleFloorY}
+            normalScale={normalScale}
+            gameMode={gameActive}
+            game={game}
+            mouseTargetRef={mouseTargetRef}
+            isHoveredRef={isHoveredRef}
+            fishPosRef={fishPosRef}
+            onGlassFront={handleGlassFront}
+          />
         </group>
         {showMilky && <DepoFish floorY={floorY} />}
         <FloorPlane y={floorY} />
@@ -156,6 +269,7 @@ export default function Scene() {
         <Environment preset="city" environmentIntensity={1} />
 
         <OrbitControls
+          ref={controlsRef}
           makeDefault
           enablePan={true}
           enableZoom={true}
@@ -165,6 +279,13 @@ export default function Scene() {
           autoRotateSpeed={0.5}
           dampingFactor={0.05}
           enableDamping
+        />
+
+        <CameraRig
+          active={gameActive}
+          glassFront={glassFront}
+          controlsRef={controlsRef}
+          onArrive={handleArrive}
         />
       </Canvas>
 
@@ -199,6 +320,7 @@ export default function Scene() {
       </div>
       */}
 
+      {!gameActive && (
       <div style={{
         position: 'absolute',
         bottom: 32,
@@ -285,6 +407,118 @@ export default function Scene() {
           </div>
         ))}
       </div>
+      )}
+
+      {!gameActive && (
+        <div style={{
+          position: 'absolute',
+          top: 24,
+          left: '50%',
+          transform: 'translateX(-50%)',
+          zIndex: 2,
+        }}>
+          <button
+            type="button"
+            onClick={handleStartGame}
+            disabled={!glassFront}
+            style={{
+              padding: '10px 24px',
+              fontSize: 14,
+              fontFamily: '-apple-system, BlinkMacSystemFont, "Apple SD Gothic Neo", system-ui, sans-serif',
+              fontWeight: 600,
+              background: 'rgba(255,255,255,0.75)',
+              color: '#223',
+              border: '1.5px solid rgba(100,160,255,0.45)',
+              borderRadius: 24,
+              cursor: glassFront ? 'pointer' : 'not-allowed',
+              opacity: glassFront ? 1 : 0.5,
+              backdropFilter: 'blur(16px)',
+              WebkitBackdropFilter: 'blur(16px)',
+              boxShadow: '0 4px 16px rgba(100,160,255,0.2)',
+            }}
+          >
+            베타랑 게임하기
+          </button>
+        </div>
+      )}
+
+      {gameActive && (
+        <div style={{
+          position: 'absolute',
+          inset: 0,
+          pointerEvents: 'none',
+          zIndex: 2,
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          justifyContent: 'flex-end',
+          paddingBottom: 40,
+          gap: 12,
+        }}>
+          <p style={{
+            margin: 0,
+            padding: '10px 20px',
+            borderRadius: 20,
+            background: 'rgba(255,255,255,0.55)',
+            backdropFilter: 'blur(12px)',
+            WebkitBackdropFilter: 'blur(12px)',
+            fontFamily: '-apple-system, BlinkMacSystemFont, "Apple SD Gothic Neo", system-ui, sans-serif',
+            fontSize: 14,
+            fontWeight: 500,
+            color: '#334',
+            boxShadow: '0 2px 12px rgba(100,160,255,0.15)',
+          }}>
+            {game.statusMessage}
+          </p>
+
+          <div style={{ display: 'flex', gap: 8 }}>
+            {game.phase === 'ended' && (
+              <button
+                type="button"
+                onClick={handleRestart}
+                style={{
+                  pointerEvents: 'auto',
+                  padding: '10px 22px',
+                  fontSize: 14,
+                  fontFamily: '-apple-system, BlinkMacSystemFont, "Apple SD Gothic Neo", system-ui, sans-serif',
+                  fontWeight: 600,
+                  background: 'rgba(255,255,255,0.75)',
+                  color: '#223',
+                  border: '1.5px solid rgba(100,160,255,0.45)',
+                  borderRadius: 24,
+                  cursor: 'pointer',
+                  backdropFilter: 'blur(16px)',
+                  WebkitBackdropFilter: 'blur(16px)',
+                  boxShadow: '0 4px 16px rgba(100,160,255,0.2)',
+                }}
+              >
+                다시하기
+              </button>
+            )}
+            <button
+              type="button"
+              onClick={handleEndGame}
+              style={{
+                pointerEvents: 'auto',
+                padding: '10px 22px',
+                fontSize: 14,
+                fontFamily: '-apple-system, BlinkMacSystemFont, "Apple SD Gothic Neo", system-ui, sans-serif',
+                fontWeight: 600,
+                background: 'rgba(255,255,255,0.6)',
+                color: '#445',
+                border: '1.5px solid rgba(0,0,0,0.1)',
+                borderRadius: 24,
+                cursor: 'pointer',
+                backdropFilter: 'blur(16px)',
+                WebkitBackdropFilter: 'blur(16px)',
+                boxShadow: '0 4px 16px rgba(0,0,0,0.08)',
+              }}
+            >
+              끝내기
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

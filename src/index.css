@@ -8,4 +8,15 @@ html, body, #root {
   width: 100%;
   height: 100%;
   overflow: hidden;
+  /* 터치 드래그를 스크롤/줌으로 가로채지 않게(그리기 획 끊김 방지) */
+  touch-action: none;
+  overscroll-behavior: none;
+}
+
+/* R3F 캔버스: 터치로 그리기/회전 시 브라우저 제스처 차단 */
+canvas {
+  touch-action: none;
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-tap-highlight-color: transparent;
 }

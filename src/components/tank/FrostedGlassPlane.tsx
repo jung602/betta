@@ -19,8 +19,12 @@ export interface TraceAPI {
 interface FrostedGlassPlaneProps {
   width: number
   height: number
+  /** 외부 지오메트리(모델의 'game' 메시). 주어지면 PlaneGeometry 대신 사용하고 UV도 그대로 사용 */
+  geometry?: THREE.BufferGeometry
   position?: [number, number, number]
   showTrace?: boolean
+  /** true면 프로스티드 글래스 텍스처 없이 투명 베이스 + 마커(trace)만 렌더 */
+  bare?: boolean
   paintMode?: 'free' | 'game'
   onDrawStart?: () => void
   onDrawEnd?: () => void
@@ -35,8 +39,10 @@ interface FrostedGlassPlaneProps {
 export default function FrostedGlassPlane({
   width,
   height,
+  geometry,
   position = [0, 0, 0],
   showTrace = true,
+  bare = false,
   paintMode = 'free',
   onDrawStart,
   onDrawEnd,
@@ -48,13 +54,15 @@ export default function FrostedGlassPlane({
   onStrokeEnd,
 }: FrostedGlassPlaneProps) {
   const gradientMap = useGradientTexture('#0075FE', '#fafafa', 512)
-  const planeGeo = useMemo(() => new THREE.PlaneGeometry(width, height), [width, height])
+  // 외부 지오메트리가 있으면 그대로 사용(소유권은 외부), 없으면 평면 생성
+  const fallbackGeo = useMemo(() => (geometry ? null : new THREE.PlaneGeometry(width, height)), [geometry, width, height])
+  const planeGeo = geometry ?? fallbackGeo!
 
   useEffect(() => {
     return () => {
-      planeGeo.dispose()
+      fallbackGeo?.dispose()
     }
-  }, [planeGeo])
+  }, [fallbackGeo])
 
   const {
     paintTexture,
@@ -131,6 +139,28 @@ export default function FrostedGlassPlane({
 
   const pointerHandlers = gamePointerHandlers ?? freePointerHandlers
 
+  // bare: 투명 히트 면 + 마커(trace)만. 어항 글래스 위에 겹칠 때 프로스티드 재질 없음
+  if (bare) {
+    return (
+      <group position={position}>
+        <mesh geometry={planeGeo} {...pointerHandlers}>
+          <meshBasicMaterial transparent opacity={0} depthWrite={false} />
+        </mesh>
+        {showTrace && (
+          <mesh geometry={planeGeo} renderOrder={9}>
+            <meshBasicMaterial
+              map={traceTexture}
+              transparent
+              opacity={0.72}
+              depthWrite={false}
+              toneMapped={false}
+            />
+          </mesh>
+        )}
+      </group>
+    )
+  }
+
   return (
     <group position={position}>
       <mesh geometry={planeGeo} {...pointerHandlers}>
@@ -138,7 +168,7 @@ export default function FrostedGlassPlane({
           map={gradientMap}
           roughnessMap={paintTexture}
           color="#fafafa"
-          roughness={0.3}
+          roughness={0}
           transmission={1}
           thickness={0.1}
           chromaticAberration={0.01}

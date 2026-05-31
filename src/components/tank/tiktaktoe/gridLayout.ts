@@ -12,7 +12,8 @@ export interface GridLayout {
   planeHeight: number
   cx: number // 보드 중심 (world)
   cy: number
-  half: number // 보드 절반 크기 (world)
+  halfX: number // 보드 가로 절반 크기 (world)
+  halfY: number // 보드 세로 절반 크기 (world)
   rotation: number // 라디안
   cellWorldCenters: { x: number; y: number }[] // 베타용 (fishVisualScale 역보정)
 }
@@ -46,37 +47,41 @@ export function uvToCellIndex(layout: GridLayout, u: number, v: number): number 
   const dx = wx - layout.cx
   const dy = wy - layout.cy
   const local = rotate(dx, dy, -layout.rotation)
-  const { half } = layout
-  if (Math.abs(local.x) > half || Math.abs(local.y) > half) return -1
-  const step = (2 * half) / 3
-  const col = Math.min(2, Math.max(0, Math.floor((local.x + half) / step)))
-  const row = Math.min(2, Math.max(0, Math.floor((half - local.y) / step)))
+  const { halfX, halfY } = layout
+  if (Math.abs(local.x) > halfX || Math.abs(local.y) > halfY) return -1
+  const stepX = (2 * halfX) / 3
+  const stepY = (2 * halfY) / 3
+  const col = Math.min(2, Math.max(0, Math.floor((local.x + halfX) / stepX)))
+  const row = Math.min(2, Math.max(0, Math.floor((halfY - local.y) / stepY)))
   return row * 3 + col
 }
 
 /** 칸의 로컬 사각형 (패딩 적용 가능) */
 export function cellLocalRect(layout: GridLayout, i: number, padRatio = 0) {
-  const { half } = layout
-  const step = (2 * half) / 3
+  const { halfX, halfY } = layout
+  const stepX = (2 * halfX) / 3
+  const stepY = (2 * halfY) / 3
   const col = i % 3
   const row = Math.floor(i / 3)
-  const pad = step * padRatio
-  const x0 = -half + col * step + pad
-  const x1 = -half + (col + 1) * step - pad
-  const yTop = half - row * step - pad
-  const yBot = half - (row + 1) * step + pad
+  const padX = stepX * padRatio
+  const padY = stepY * padRatio
+  const x0 = -halfX + col * stepX + padX
+  const x1 = -halfX + (col + 1) * stepX - padX
+  const yTop = halfY - row * stepY - padY
+  const yBot = halfY - (row + 1) * stepY + padY
   return { x0, x1, yTop, yBot }
 }
 
 /** 격자 '#' 4선의 로컬 좌표 끝점 */
 export function gridLinesLocal(layout: GridLayout) {
-  const { half } = layout
-  const inner = half / 3
+  const { halfX, halfY } = layout
+  const innerX = halfX / 3
+  const innerY = halfY / 3
   return [
-    { x0: -inner, y0: half, x1: -inner, y1: -half },
-    { x0: inner, y0: half, x1: inner, y1: -half },
-    { x0: -half, y0: inner, x1: half, y1: inner },
-    { x0: -half, y0: -inner, x1: half, y1: -inner },
+    { x0: -innerX, y0: halfY, x1: -innerX, y1: -halfY },
+    { x0: innerX, y0: halfY, x1: innerX, y1: -halfY },
+    { x0: -halfX, y0: innerY, x1: halfX, y1: innerY },
+    { x0: -halfX, y0: -innerY, x1: halfX, y1: -innerY },
   ]
 }
 
@@ -126,12 +131,24 @@ export function createRandomGridLayout(
   planeWidth: number,
   planeHeight: number,
   fishVisualScale: number,
+  /** 베타가 도달 가능한 면 내 반경(반-폭/반-높이). 보드 전체가 이 안에 들어오도록 제한 */
+  reach?: { x: number; y: number },
 ): GridLayout {
-  const minDim = Math.min(planeWidth, planeHeight)
-  const boardSize = minDim * (0.45 + Math.random() * 0.2)
-  const half = boardSize / 2
-  const cx = (Math.random() - 0.5) * planeWidth * 0.28
-  const cy = (Math.random() - 0.5) * planeHeight * 0.28
+  // 보드는 game 메시(그리기 면) 기준으로 가로·세로를 꽉 채운다(직사각형 칸).
+  // game 메시가 물보다 작으므로 칸들은 자동으로 베타 도달영역 안. reach는 안전장치로만 사용.
+  const reachX = reach ? Math.max(reach.x, 0.05) : planeWidth / 2
+  const reachY = reach ? Math.max(reach.y, 0.05) : planeHeight / 2
+  const CELL_SPREAD = (2 / 3) * 1.2 // 셀 중심이 보드 중심에서 벗어나는 비율(+회전 여유)
+  const sizeFactor = 0.5 + Math.random() * 0.1
+  const halfX = (planeWidth / 2) * sizeFactor
+  const halfY = (planeHeight / 2) * sizeFactor
+  const cellReachX = CELL_SPREAD * halfX
+  const cellReachY = CELL_SPREAD * halfY
+  // 중심 이동 범위: 보드 외곽이 그리기 면 안 + (안전) 셀 중심이 도달영역 안
+  const cxRange = Math.max(0, Math.min(planeWidth / 2 - halfX, reachX - cellReachX))
+  const cyRange = Math.max(0, Math.min(planeHeight / 2 - halfY, reachY - cellReachY))
+  const cx = (Math.random() - 0.5) * 2 * cxRange
+  const cy = (Math.random() - 0.5) * 2 * cyRange
   const rotation = (Math.random() - 0.5) * 0.32 // ±~9도
 
   const layout: GridLayout = {
@@ -139,17 +156,19 @@ export function createRandomGridLayout(
     planeHeight,
     cx,
     cy,
-    half,
+    halfX,
+    halfY,
     rotation,
     cellWorldCenters: [],
   }
 
-  const step = (2 * half) / 3
+  const stepX = (2 * halfX) / 3
+  const stepY = (2 * halfY) / 3
   for (let i = 0; i < 9; i++) {
     const col = i % 3
     const row = Math.floor(i / 3)
-    const lx = -half + (col + 0.5) * step
-    const ly = half - (row + 0.5) * step
+    const lx = -halfX + (col + 0.5) * stepX
+    const ly = halfY - (row + 0.5) * stepY
     const w = boardLocalToWorld(layout, lx, ly)
     layout.cellWorldCenters.push({ x: w.x / fishVisualScale, y: w.y / fishVisualScale })
   }
