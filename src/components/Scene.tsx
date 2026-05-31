@@ -186,7 +186,7 @@ const floorMat = new THREE.ShaderMaterial({
   `,
   uniforms: {
     uMap: { value: null },
-    uOpacity: { value: 0.3 },
+    uOpacity: { value: 0.5 },
     uFeather: { value: 0.5 },
   },
   transparent: true,

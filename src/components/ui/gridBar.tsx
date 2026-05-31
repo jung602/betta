@@ -125,9 +125,15 @@ function GamePanel({
           const src = api?.traceCanvas
           const rect = api?.getBoardRect?.()
           if (src && rect && rect.w > 0 && rect.h > 0) {
-            const scale = Math.min(dst.width / rect.w, dst.height / rect.h) * BOARD_FIT
-            const dw = rect.w * scale
-            const dh = rect.h * scale
+            // 화면상 비율(rect.aspect = 가로/세로)로 표시 박스를 잡아 패널에 맞춤.
+            // 텍스처 크롭(rect.w×rect.h)을 이 박스로 비균등 스케일해 메시와 동일하게 펴짐.
+            const aspect = rect.aspect > 0 ? rect.aspect : rect.w / rect.h
+            let dw = dst.width * BOARD_FIT
+            let dh = dw / aspect
+            if (dh > dst.height * BOARD_FIT) {
+              dh = dst.height * BOARD_FIT
+              dw = dh * aspect
+            }
             const dx = (dst.width - dw) / 2
             const dy = (dst.height - dh) / 2
             xformRef.current = { dx, dy, dw, dh, sx: rect.x, sy: rect.y, sw: rect.w, sh: rect.h }

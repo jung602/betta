@@ -36,8 +36,11 @@ export function createTraceTexture() {
 
   const texture = new THREE.CanvasTexture(canvas)
   texture.colorSpace = THREE.SRGBColorSpace
-  texture.minFilter = THREE.LinearFilter
+  // 밉맵 + 이방성 필터링: 마커/격자 선의 계단현상·지글거림 완화
+  texture.minFilter = THREE.LinearMipmapLinearFilter
   texture.magFilter = THREE.LinearFilter
+  texture.generateMipmaps = true
+  texture.anisotropy = 16 // three가 하드웨어 최대치로 자동 클램프
   return { canvas, ctx, texture }
 }
 

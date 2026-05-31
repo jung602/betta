@@ -37,7 +37,12 @@ function boardCanvasRect(layout: GridLayout | null) {
   }
   const padX = (maxx - minx) * 0.08
   const padY = (maxy - miny) * 0.08
-  return { x: minx - padX, y: miny - padY, w: maxx - minx + 2 * padX, h: maxy - miny + 2 * padY }
+  const w = maxx - minx + 2 * padX
+  const h = maxy - miny + 2 * padY
+  // 텍스처 픽셀 비율(w:h)을 메시 매핑(planeWidth/planeHeight)으로 보정한 화면상 가로/세로 비율.
+  // worldToCanvas가 축마다 다른 정규화를 쓰므로, 메시에 입히면 이 비율로 펴진다.
+  const aspect = h > 0 ? (w * layout.planeWidth) / (h * layout.planeHeight) : 1
+  return { x: minx - padX, y: miny - padY, w, h, aspect }
 }
 
 const BETTA_ARRIVE_DIST = 0.06
@@ -55,8 +60,8 @@ type Game = ReturnType<typeof useTictactoeGame>
 export interface GameSurfaceApi {
   /** 격자/O/X가 그려지는 1024² 트레이스 캔버스(미러 소스) */
   traceCanvas: HTMLCanvasElement
-  /** 보드 영역의 트레이스 캔버스 픽셀 사각형(패널 가운데 정렬용). 없으면 null */
-  getBoardRect: () => { x: number; y: number; w: number; h: number } | null
+  /** 보드 영역의 트레이스 캔버스 픽셀 사각형(패널 가운데 정렬용). aspect=화면상 가로/세로 비율. 없으면 null */
+  getBoardRect: () => { x: number; y: number; w: number; h: number; aspect: number } | null
   beginStroke: () => void
   addPoint: (p: UVPoint) => void
   endStroke: (points: UVPoint[]) => void
@@ -164,7 +169,7 @@ export default function TankGame({
     start: () => void
     point: (p: UVPoint) => void
     end: (pts: UVPoint[]) => void
-    rect: () => { x: number; y: number; w: number; h: number } | null
+    rect: () => { x: number; y: number; w: number; h: number; aspect: number } | null
   } | null>(null)
 
   const handleTraceReady = useCallback(

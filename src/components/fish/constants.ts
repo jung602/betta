@@ -3,12 +3,12 @@ import * as THREE from 'three'
 // ── Fish scaling ──
 export const FISH_SCALE = 0.05
 export const BODY_SCALE = 1.3
-export const TAIL_SCALE = 0.9
+export const TAIL_SCALE = 0.8
 
 // ── Fin size multipliers ──
 export const PECTORAL_SCALE = 1.5
-export const DORSAL_SCALE = 1.75
-export const ANAL_SCALE = 3
+export const DORSAL_SCALE = 1.5
+export const ANAL_SCALE = 2.5
 
 // ── Movement ──
 export const MAX_SPEED = 0.0875
