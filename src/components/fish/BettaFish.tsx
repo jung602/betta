@@ -34,6 +34,7 @@ interface BettaFishProps {
   tailPreset: TailPresetKey
   foodPellets: { current: FoodPellet[] }
   normalScale?: number
+  positionRef?: React.MutableRefObject<THREE.Vector3 | null>
 }
 
 /** Attaches a fin's membrane mesh and ray lines to a group, disposing on unmount. */
@@ -52,7 +53,7 @@ function useAttachFin(ref: React.RefObject<THREE.Group | null>, fin: FinState) {
   }, [ref, fin])
 }
 
-export default function BettaFish({ mouseTarget, isHovered, bounds, tailPreset, foodPellets, normalScale = 1 }: BettaFishProps) {
+export default function BettaFish({ mouseTarget, isHovered, bounds, tailPreset, foodPellets, normalScale = 1, positionRef }: BettaFishProps) {
   const fishOriginRef = useRef<THREE.Group>(null)
   const tailGroupRef = useRef<THREE.Group>(null)
   const eyeGroupRef = useRef<THREE.Group>(null)
@@ -62,7 +63,6 @@ export default function BettaFish({ mouseTarget, isHovered, bounds, tailPreset, 
   const dorsalRef = useRef<THREE.Group>(null)
   const analRef = useRef<THREE.Group>(null)
 
-  const bodyMatRef = useRef<THREE.MeshStandardMaterial>(null)
   const glowRef = useRef(0)
 
   const pos = useRef(new THREE.Vector3(0, 0, 0))
@@ -77,11 +77,16 @@ export default function BettaFish({ mouseTarget, isHovered, bounds, tailPreset, 
     let srcGeo: THREE.BufferGeometry | null = null
     let normalMap: THREE.Texture | null = null
     let normalScale = 2
+    let origMat: THREE.Material | null = null
     fishBodyScene.traverse((child) => {
       const mesh = child as THREE.Mesh
       if (mesh.isMesh && !srcGeo) {
         srcGeo = mesh.geometry.clone()
         const mat = mesh.material as THREE.MeshStandardMaterial
+        // glb 원본 머티리얼 그대로 사용
+        origMat = Array.isArray(mesh.material)
+          ? mesh.material[0].clone()
+          : (mesh.material as THREE.Material).clone()
         if (mat?.normalMap) {
           normalMap = mat.normalMap
           if (mat.normalScale) normalScale = mat.normalScale.x
@@ -164,7 +169,7 @@ export default function BettaFish({ mouseTarget, isHovered, bounds, tailPreset, 
     if (geo.attributes.uv && geo.index) {
       geo.computeTangents()
     }
-    return { geo, original, originalColors, normalMap, normalScale }
+    return { geo, original, originalColors, normalMap, normalScale, material: origMat }
   }, [fishBodyScene])
 
   const pectoralState = useMemo(() => {
@@ -237,6 +242,10 @@ export default function BettaFish({ mouseTarget, isHovered, bounds, tailPreset, 
       const dist = _desired.length()
       if (dist < 0.02) {
         vel.current.multiplyScalar(0.8)
+        // 제자리에서도 자연스럽게 미세하게 떠다니도록(꼬리·지느러미 흔들림 유지)
+        _acc.x += Math.sin(t * 1.7) * 0.0006
+        _acc.y += Math.sin(t * 1.1 + 1.5) * 0.0006
+        _acc.z += Math.sin(t * 1.3 + 0.7) * 0.0006
       } else {
         const speed = dist < ARRIVE_RADIUS
           ? (dist / ARRIVE_RADIUS) * ARRIVE_MAX_SPEED
@@ -323,6 +332,7 @@ export default function BettaFish({ mouseTarget, isHovered, bounds, tailPreset, 
     }
 
     fishOriginRef.current.position.copy(pos.current)
+    if (positionRef) positionRef.current = pos.current
     if (vel.current.length() > 0.01) {
       _lookMat.lookAt(vel.current, _origin, _up)
       _targetQuat.setFromRotationMatrix(_lookMat)
@@ -429,16 +439,7 @@ export default function BettaFish({ mouseTarget, isHovered, bounds, tailPreset, 
     <group ref={fishOriginRef}>
       <group rotation={[0, Math.PI / 2, 0]} scale={FISH_SCALE}>
         <group scale={BODY_SCALE}>
-          <mesh geometry={bodyState.geo}>
-            <meshStandardMaterial
-              ref={bodyMatRef}
-              vertexColors
-              emissive="#802018"
-              emissiveIntensity={1}
-              normalMap={bodyState.normalMap}
-              normalScale={bodyState.normalMap ? new THREE.Vector2(normalScale, normalScale) : undefined}
-            />
-          </mesh>
+          <mesh geometry={bodyState.geo} material={bodyState.material ?? undefined} />
           <group ref={eyeGroupRef}>
             {[1, -1].map(sign => (
               <mesh key={sign} position={[BODY_CENTER_X - 0.48, 0.08, 0.14 * sign]}>

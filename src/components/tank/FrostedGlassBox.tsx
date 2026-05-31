@@ -1,60 +1,11 @@
-import { useRef, useMemo, useEffect, useState } from 'react'
+import { useRef, useMemo, useEffect } from 'react'
 import { useFrame, ThreeEvent } from '@react-three/fiber'
 import * as THREE from 'three'
 import { useGLTF, MeshTransmissionMaterial } from '@react-three/drei'
 import { BettaFish, type TailPresetKey } from '../fish'
 import Bubbles from '../effects/Bubbles'
-import FishFood from '../effects/FishFood'
 import type { FoodPellet, Bounds } from '../types'
 import { useGradientTexture, useRemapUVsByY } from '../hooks'
-
-
-{/* 
-const PIXELS_PER_UNIT = 1000
-
-
-function VideoBackdrop({ bounds }: { bounds: Bounds }) {
-  const [videoTexture, setVideoTexture] = useState<THREE.VideoTexture | null>(null)
-  const [size, setSize] = useState<[number, number] | null>(null)
-
-  useEffect(() => {
-    const video = document.createElement('video')
-    video.src = `${import.meta.env.BASE_URL}test2.mp4`
-    video.crossOrigin = 'anonymous'
-    video.loop = true
-    video.muted = true
-    video.playsInline = true
-
-    const onMeta = () => {
-      setSize([video.videoWidth / PIXELS_PER_UNIT, video.videoHeight / PIXELS_PER_UNIT])
-      video.play()
-    }
-    video.addEventListener('loadedmetadata', onMeta)
-
-    const texture = new THREE.VideoTexture(video)
-    texture.minFilter = THREE.LinearFilter
-    texture.magFilter = THREE.LinearFilter
-    texture.colorSpace = THREE.SRGBColorSpace
-    setVideoTexture(texture)
-
-    return () => {
-      video.removeEventListener('loadedmetadata', onMeta)
-      video.pause()
-      video.src = ''
-      texture.dispose()
-    }
-  }, [])
-
-  if (!videoTexture || !size) return null
-
-  return (
-    <mesh position={[0, 0, -bounds.z - 0.5]}>
-      <planeGeometry args={size} />
-      <meshBasicMaterial map={videoTexture} toneMapped={false} />
-    </mesh>
-  )
-}
-*/}
 
 export const TANK_MODELS = {
   square: { path: 'squaretank.glb', label: 'Square', shape: 'box' as const },
@@ -83,7 +34,6 @@ export default function FrostedGlassBox({ tailPreset, tankModel, onFloorY, norma
   const mouseTarget = useRef<THREE.Vector3 | null>(null)
   const isHovered = useRef(false)
   const foodPelletsRef = useRef<FoodPellet[]>([])
-  const nextFoodIdRef = useRef(0)
 
   const glbPath = `${import.meta.env.BASE_URL}${TANK_MODELS[tankModel].path}`
   const { scene } = useGLTF(glbPath)
@@ -181,8 +131,7 @@ export default function FrostedGlassBox({ tailPreset, tankModel, onFloorY, norma
     }
   })
 
-  const handlePointerMove = (e: ThreeEvent<PointerEvent>) => {
-    e.stopPropagation()
+  const updateMouseTarget = (e: ThreeEvent<PointerEvent>) => {
     const localPoint = groupRef.current
       ? groupRef.current.worldToLocal(e.point.clone())
       : e.point.clone()
@@ -198,49 +147,19 @@ export default function FrostedGlassBox({ tailPreset, tankModel, onFloorY, norma
     isHovered.current = true
   }
 
-  const handlePointerLeave = () => {
-    isHovered.current = false
+  const handlePointerMove = (e: ThreeEvent<PointerEvent>) => {
+    e.stopPropagation()
+    updateMouseTarget(e)
   }
 
-  const handleClick = (e: ThreeEvent<MouseEvent>) => {
-    e.stopPropagation()
-    const localPoint = groupRef.current
-      ? groupRef.current.worldToLocal(e.point.clone())
-      : e.point.clone()
-
-    const { x: bx, y: by, z: bz } = orbBounds
-    
-
-    const count = 3 + Math.floor(Math.random() * 3)
-    for (let i = 0; i < count; i++) {
-      foodPelletsRef.current.push({
-        id: nextFoodIdRef.current++,
-        position: new THREE.Vector3(
-          THREE.MathUtils.clamp(localPoint.x + (Math.random() - 0.5) * 0.02, -bx, bx),
-          THREE.MathUtils.clamp(localPoint.y + (Math.random() - 0.5) * 0.01, -by, by),
-          THREE.MathUtils.clamp(localPoint.z + (Math.random() - 0.5) * 0.02, -bz, bz),
-        ),
-        velocity: new THREE.Vector3(
-          (Math.random() - 0.5) * 0.01,
-          -0.0075 - Math.random() * 0.0075,
-          (Math.random() - 0.5) * 0.01,
-        ),
-        alive: true,
-      })
-    }
-    while (foodPelletsRef.current.length > 30) {
-      foodPelletsRef.current[0].alive = false
-      foodPelletsRef.current.shift()
-    }
+  const handlePointerLeave = () => {
+    isHovered.current = false
   }
 
   return (
     <group ref={groupRef} position={[0, 0, 0]}>
       <BettaFish mouseTarget={mouseTarget} isHovered={isHovered} bounds={orbBounds} tailPreset={tailPreset} foodPellets={foodPelletsRef} normalScale={normalScale} />
-      <FishFood pelletsRef={foodPelletsRef} bounds={orbBounds} />
       <Bubbles />
-
-      {/* <VideoBackdrop bounds={orbBounds} /> */}
 
       <primitive object={otherScene} />
 
@@ -250,7 +169,6 @@ export default function FrostedGlassBox({ tailPreset, tankModel, onFloorY, norma
           geometry={waterGeo}
           onPointerMove={handlePointerMove}
           onPointerLeave={handlePointerLeave}
-          onClick={handleClick}
         >
           <MeshTransmissionMaterial
             map={gradientMap}
@@ -287,7 +205,7 @@ export default function FrostedGlassBox({ tailPreset, tankModel, onFloorY, norma
           <meshPhysicalMaterial
             color="#d4eaff"
             transparent
-            opacity={0.1}
+            opacity={0}
             roughness={0.1}
             metalness={0.05}
             envMapIntensity={1}

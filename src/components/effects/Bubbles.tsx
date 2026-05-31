@@ -13,8 +13,8 @@ const BUOYANCY_MIN = 0.0625
 const BUOYANCY_MAX = 0.1375
 const WOBBLE_AMP = 0.03
 const WOBBLE_SPEED = 2.8
-const SIZE_MIN = 0.009
-const SIZE_MAX = 0.025
+const SIZE_MIN = 0.015
+const SIZE_MAX = 0.042
 
 interface BubbleData {
   mesh: THREE.Mesh
@@ -49,9 +49,11 @@ const bubbleMat = new THREE.ShaderMaterial({
       vec3 baseColor = mix(vec3(0.75, 0.9, 1.0), vec3(1.0), fresnel * 0.7);
       vec3 color = mix(baseColor, iriColor, 0.25);
       float highlight = smoothstep(0.4, 0.9, dot(vNormal, normalize(vec3(-0.5, 0.7, 0.5))));
-      color += highlight * 0.5;
-      float alpha = mix(0.04, 0.35, fresnel) + highlight * 0.2;
-      gl_FragColor = vec4(color, alpha);
+      color += highlight * 0.6;
+      // 테두리(fresnel)를 더 또렷하게 + 전체적으로 선명하게
+      float rim = pow(1.0 - abs(dot(vNormal, vViewDir)), 2.0);
+      float alpha = mix(0.12, 0.7, fresnel) + highlight * 0.35 + rim * 0.15;
+      gl_FragColor = vec4(color, clamp(alpha, 0.0, 0.95));
     }
   `,
   uniforms: { uTime: { value: 0 } },

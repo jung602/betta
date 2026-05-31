@@ -12,6 +12,7 @@ export interface FinShape {
 function lengthFn(t: number, shape: string) {
   if (shape === 'round') return 0.85 + 0.15 * Math.sin(t * Math.PI)
   if (shape === 'asymmetric') return 1.0 - 0.45 * t
+  if (shape === 'asymmetricReverse') return 0.55 + 0.45 * t
   return 1.0
 }
 

@@ -19,9 +19,9 @@ export const memMat = new THREE.MeshStandardMaterial({
   color: '#ffffff',
   vertexColors: true,
   emissive: '#ff0000',
-  emissiveIntensity: 0.5,
+  emissiveIntensity: 0.7,
   transparent: true,
-  opacity: 0.55,
+  opacity: 0.75,
   side: THREE.DoubleSide,
 })
 

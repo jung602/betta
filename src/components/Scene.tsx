@@ -156,6 +156,7 @@ export default function Scene() {
         <Environment preset="city" environmentIntensity={1} />
 
         <OrbitControls
+          makeDefault
           enablePan={true}
           enableZoom={true}
           minPolarAngle={Math.PI / 4}

@@ -7,8 +7,8 @@ export const TAIL_SCALE = 0.9
 
 // ── Fin size multipliers ──
 export const PECTORAL_SCALE = 1.5
-export const DORSAL_SCALE = 2
-export const ANAL_SCALE = 1.5
+export const DORSAL_SCALE = 1.75
+export const ANAL_SCALE = 3
 
 // ── Movement ──
 export const MAX_SPEED = 0.0875
@@ -41,11 +41,11 @@ export const PECTORAL_X = -0.95
 export const PECTORAL_Y = -0.05
 export const PECTORAL_Z = 0.17
 
-export const DORSAL_X = -0.5
-export const DORSAL_Y = 0.2
+export const DORSAL_X = -0.65
+export const DORSAL_Y = 0.25
 
-export const ANAL_X = -0.3
-export const ANAL_Y = -0.2
+export const ANAL_X = -0.15
+export const ANAL_Y = -0.05
 
 export const TAIL_X = -0.15
 export const TAIL_Y = -0.08
@@ -63,7 +63,7 @@ export const DORSAL_FIN = {
 
 export const ANAL_FIN = {
   rayCount: 8, spread: 90, length: 0.3, droop: 0.3,
-  branchDepth: 0, recession: 0, doubled: false, lenShape: 'asymmetric',
+  branchDepth: 0, recession: 0, doubled: false, lenShape: 'asymmetricReverse',
 }
 
 // ── Reusable temp vectors (avoid GC) ──
