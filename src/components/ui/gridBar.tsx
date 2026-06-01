@@ -513,7 +513,20 @@ export default function GridBar({
             <OptionCarousel items={TANK_ITEMS} selected={tankModel} onSelect={onTankSelect} />
           ) : openPanel === 'fish' ? (
             <OptionCarousel items={TAIL_ITEMS} selected={tailPreset} onSelect={onTailSelect} />
-          ) : null}
+          ) : (
+            <span
+              style={{
+                fontFamily: FONT,
+                fontSize: 12,
+                fontWeight: 500,
+                letterSpacing: '0.08em',
+                color: 'rgba(85, 102, 170, 0.75)',
+                userSelect: 'none',
+              }}
+            >
+              𓆝 ⋆｡𖦹°‧🫧⋆.ೃ࿔*:･
+            </span>
+          )}
         </div>
       )}
     </div>

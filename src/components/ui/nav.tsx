@@ -23,6 +23,8 @@ const NAV_BUTTON_SIZE = 64
 const PLAY_WIDTH = 200
 
 const GLOSSY_BLUE = glossyStyles('blue')
+/** gridBar 라벨·상태 텍스트와 동일 */
+const NAV_TEXT_COLOR = 'rgba(85, 102, 170, 1)'
 
 function NavSideSpacer() {
   return <div style={{ width: SIDE_SLOT_WIDTH, flexShrink: 0 }} aria-hidden />
@@ -51,7 +53,7 @@ function CurvedCircleLabel({ label }: { label: string }) {
         <path id={pathId} d={pathD} fill="none" />
       </defs>
       <text
-        fill="#fff"
+        fill={NAV_TEXT_COLOR}
         fontSize={10}
         fontFamily={FONT}
         fontWeight={600}
@@ -97,7 +99,7 @@ function SideButton({
           padding: 0,
           border: GLOSSY_BLUE.border,
           background: GLOSSY_BLUE.bg,
-          color: 'rgba(34, 34, 51, 1)',
+          color: NAV_TEXT_COLOR,
           borderRadius: '50%',
           overflow: 'hidden',
           cursor: 'pointer',
@@ -154,7 +156,7 @@ function PlayButton({
         flexShrink: 0,
         padding: '12px 24px',
         background: GLOSSY_BLUE.bg,
-        color: 'rgba(34, 34, 51, 1)',
+        color: NAV_TEXT_COLOR,
         border: GLOSSY_BLUE.border,
         borderRadius: 100,
         cursor: disabled ? 'not-allowed' : 'pointer',
@@ -175,8 +177,7 @@ function PlayButton({
           fontSize: 16,
           fontFamily: FONT,
           fontWeight: 600,
-          color: '#fff',
-          textShadow: '-1px -1px 0px rgba(0, 0, 0, 0.1), 1px 1px 10px #A2ADB8',
+          color: NAV_TEXT_COLOR,
         }}
       >
         {label}
